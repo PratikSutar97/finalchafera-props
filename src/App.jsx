@@ -502,7 +502,8 @@ export default function App() {
       setError(`प्रॉप कायमचा delete करताना error: ${e.message}`);
     }
   }
-  async function downloadPdf(checkedMode) {
+
+  async function downloadPdf(checkedMode, uniqueMode = false) {
     if (!sections.length) {
       setError(
         "PDF तयार करण्यासाठी Firestore मधील props data load होणे आवश्यक आहे.",
@@ -517,138 +518,200 @@ export default function App() {
     let source;
 
     try {
-      // Sort every entry numerically: Act 1, Act 2... and entry 1, entry 2...
       const sortedSections = sortSections(sections);
 
       source = document.createElement("div");
       source.className = "pdf-export-root";
 
       source.style.cssText = `
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 794px;
-  padding: 32px;
-  box-sizing: border-box;
-  background: #ffffff;
-  color: #111827;
-  visibility: visible;
-  opacity: 1;
-  display: block;
-  overflow: visible;
-  font-family: "Nirmala UI", "Noto Sans Devanagari", Mangal, Arial, sans-serif;
-  z-index: 2147483647;
-  pointer-events: none;
-`;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 794px;
+      padding: 24px;
+      box-sizing: border-box;
+      background: #ffffff;
+      color: #111827;
+      visibility: visible;
+      opacity: 1;
+      display: block;
+      min-height: 200px;
+      overflow: visible;
+      font-family: "Nirmala UI", "Noto Sans Devanagari", Mangal, Arial, sans-serif;
+      z-index: 2147483647;
+      pointer-events: none;
+    `;
 
       let html = `
-      <div style="text-align:center;margin-bottom:25px;">
-        <h1 style="font-size:24px;margin:0 0 8px;">
+      <div style="text-align:center;margin-bottom:20px;">
+        <h1 style="font-size:22px;margin:0 0 8px;">
           फायनल चा फेरा — प्रॉप्स
         </h1>
       </div>
     `;
 
-      let activeAct = null;
+      // OPTION 3: All props without duplicates
+      if (uniqueMode) {
+        const uniqueProps = new Map();
 
-      for (const section of sortedSections) {
-        const act = getAct(section.id);
+        for (const section of sortedSections) {
+          const items = sortItems(
+            sectionData[section.id]?.items || section.items || {},
+          );
 
-        // Print the Act heading once, before all its entries.
-        if (act !== activeAct) {
-          activeAct = act;
+          for (const [, item] of items) {
+            const name = String(item?.name || "")
+              .replace(/\s+/g, " ")
+              .trim();
+
+            if (!name) continue;
+
+            const normalizedName = name.toLocaleLowerCase();
+
+            if (!uniqueProps.has(normalizedName)) {
+              uniqueProps.set(normalizedName, name);
+            }
+          }
+        }
+
+        html += `
+        <div style="
+          display:grid;
+          grid-template-columns:repeat(3,minmax(0,1fr));
+          column-gap:12px;
+          width:100%;
+          font-size:10px;
+        ">
+      `;
+
+        let index = 0;
+
+        for (const name of uniqueProps.values()) {
+          index++;
 
           html += `
           <div style="
-            margin-top:24px;
-            margin-bottom:12px;
-            padding:10px;
-            background:#e8eef7;
-            border:1px solid #cbd5e1;
-            page-break-after:avoid;
+            display:flex;
+            align-items:flex-start;
+            gap:4px;
+            min-width:0;
+            padding:5px 2px;
+            border-bottom:1px solid #d1d5db;
+            overflow-wrap:anywhere;
+            break-inside:avoid;
           ">
-            <h2 style="font-size:20px;margin:0;">
-              अंक ${act}
-            </h2>
+            <span style="min-width:18px;color:#555;">
+              ${index}.
+            </span>
+            <span style="flex:1;min-width:0;">
+              ${escapeText(name)}
+            </span>
           </div>
         `;
         }
 
-        // Entry heading appears below its Act heading.
-        html += `
-        <h3 style="
-          font-size:15px;
-          margin:16px 0 8px;
-          padding-bottom:6px;
-          border-bottom:2px solid #333;
-          page-break-after:avoid;
-        ">
-          ${escapeText(section.title || `प्रवेश ${getPravesh(section.id)}`)}
-        </h3>
-      `;
+        html += `</div>`;
+      } else {
+        // OPTION 1 and 2: Blank and checked checklists
+        let activeAct = null;
 
-        const items = sortItems(
-          sectionData[section.id]?.items || section.items || {},
-        );
+        for (const section of sortedSections) {
+          const act = getAct(section.id);
 
-        if (!items.length) {
+          if (act !== activeAct) {
+            activeAct = act;
+
+            html += `
+            <div style="
+              margin-top:18px;
+              margin-bottom:10px;
+              padding:8px;
+              background:#e8eef7;
+              border:1px solid #cbd5e1;
+              break-after:avoid;
+            ">
+              <h2 style="font-size:18px;margin:0;">
+                अंक ${act}
+              </h2>
+            </div>
+          `;
+          }
+
           html += `
-          <p style="font-size:12px;color:#666;padding:8px 0;">
-            या प्रवेशासाठी अजून प्रॉप्स नाहीत.
-          </p>
+          <h3 style="
+            font-size:13px;
+            margin:12px 0 6px;
+            padding-bottom:4px;
+            border-bottom:1px solid #333;
+            break-after:avoid;
+          ">
+            ${escapeText(section.title || `प्रवेश ${getPravesh(section.id)}`)}
+          </h3>
         `;
-          continue;
+
+          const items = sortItems(
+            sectionData[section.id]?.items || section.items || {},
+          );
+
+          if (!items.length) {
+            html += `
+            <p style="font-size:10px;color:#666;padding:5px 0;">
+              या प्रवेशासाठी अजून प्रॉप्स नाहीत.
+            </p>
+          `;
+            continue;
+          }
+
+          html += `
+          <div style="
+            display:grid;
+            grid-template-columns:repeat(3,minmax(0,1fr));
+            column-gap:10px;
+            width:100%;
+            margin-bottom:12px;
+            font-size:10px;
+          ">
+        `;
+
+          items.forEach(([, item], index) => {
+            const isChecked = item?.checked === true;
+
+            html += `
+            <div style="
+              display:flex;
+              align-items:flex-start;
+              gap:4px;
+              min-width:0;
+              padding:5px 2px;
+              border-bottom:1px solid #d1d5db;
+              overflow-wrap:anywhere;
+              break-inside:avoid;
+            ">
+              <span style="min-width:16px;color:#555;">
+                ${index + 1}.
+              </span>
+
+              ${
+                checkedMode
+                  ? `<span style="min-width:13px;font-size:12px;">
+                      ${isChecked ? "☑" : "☐"}
+                    </span>`
+                  : ""
+              }
+
+              <span style="flex:1;min-width:0;">
+                ${escapeText(item?.name || "")}
+              </span>
+            </div>
+          `;
+          });
+
+          html += `</div>`;
         }
-
-        html += `
-        <table style="
-          width:100%;
-          border-collapse:collapse;
-          table-layout:fixed;
-          margin-bottom:18px;
-          font-size:12px;
-        ">
-          <thead>
-            <tr style="background:#f1f5f9;">
-              <th style="width:42px;border:1px solid #aaa;padding:7px;">No.</th>
-              <th style="width:48px;border:1px solid #aaa;padding:7px;">
-                ${checkedMode ? "✓" : ""}
-              </th>
-              <th style="border:1px solid #aaa;padding:7px;text-align:left;">
-                प्रॉपचे नाव
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-      `;
-
-        items.forEach(([, item], index) => {
-          const isChecked = item?.checked === true;
-
-          html += `
-          <tr style="page-break-inside:avoid;">
-            <td style="border:1px solid #aaa;padding:7px;text-align:center;">
-              ${index + 1}
-            </td>
-            <td style="border:1px solid #aaa;padding:7px;text-align:center;font-size:16px;">
-              ${checkedMode ? (isChecked ? "☑" : "☐") : ""}
-            </td>
-            <td style="border:1px solid #aaa;padding:7px;overflow-wrap:anywhere;">
-              ${escapeText(item?.name || "")}
-            </td>
-          </tr>
-        `;
-        });
-
-        html += `
-          </tbody>
-        </table>
-      `;
       }
 
+      // Insert the generated HTML before attaching the element.
       source.innerHTML = html;
-
-      // Keep the element attached to the document while html2canvas captures it.
       document.body.appendChild(source);
 
       await new Promise((resolve) => {
@@ -661,14 +724,17 @@ export default function App() {
         await document.fonts.ready;
       }
 
-      if (!source.innerText.trim() || source.scrollHeight < 100) {
-        throw new Error("PDF content तयार झाले नाही. Firestore data तपासा.");
+      if (!source.textContent?.trim()) {
+        throw new Error(
+          "PDF content रिकामे आहे. Props data load झाला आहे का ते तपासा.",
+        );
       }
 
       const options = {
-        margin: [8, 8, 8, 8],
-        filename: checkedMode
-          ? "Props_Checklist_Checked.pdf"
+        margin: [6, 6, 6, 6],
+
+        filename: uniqueMode
+          ? "All_Props_Without_Duplicates.pdf"
           : "Props_Checklist_Blank.pdf",
 
         image: {
@@ -695,11 +761,10 @@ export default function App() {
 
         pagebreak: {
           mode: ["css", "legacy"],
-          avoid: ["tr", "h2", "h3"],
+          avoid: ["h2", "h3"],
         },
       };
 
-      // Generate the PDF directly from the attached content element.
       const canvas = await html2canvas(source, {
         scale: 2,
         backgroundColor: "#ffffff",
@@ -717,7 +782,7 @@ export default function App() {
         throw new Error("PDF साठी content capture झाले नाही.");
       }
 
-      // Diagnostic: the captured image must contain more than a white page.
+      // Check that the captured canvas isn't entirely white.
       const ctx = canvas.getContext("2d");
       const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
 
@@ -726,6 +791,7 @@ export default function App() {
       for (let i = 0; i < pixels.length; i += 4) {
         if (pixels[i] < 245 || pixels[i + 1] < 245 || pixels[i + 2] < 245) {
           nonWhitePixels++;
+
           if (nonWhitePixels > 100) break;
         }
       }
@@ -753,6 +819,7 @@ export default function App() {
 
       link.href = url;
       link.download = options.filename;
+
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -760,7 +827,9 @@ export default function App() {
       window.setTimeout(() => URL.revokeObjectURL(url), 10000);
 
       setToast(
-        `${checkedMode ? "Checked" : "Blank"} checklist PDF डाउनलोड सुरू झाला.`,
+        uniqueMode
+          ? "All Props — Without Duplicates PDF डाउनलोड सुरू झाला."
+          : "Blank Checklist PDF डाउनलोड सुरू झाला.",
       );
     } catch (e) {
       console.error("PDF generation failed:", e);
@@ -806,13 +875,9 @@ export default function App() {
             <span className="live-dot" />
             Last updated at — {formatDate(lastUpdated)}
             {lastUpdatedDevice && (
-              <span className="updated-device">
-                {" "}
-                · {lastUpdatedDevice}
-              </span>
+              <span className="updated-device"> · {lastUpdatedDevice}</span>
             )}
           </div>
-
         </header>
 
         {error && (
@@ -890,16 +955,10 @@ export default function App() {
             {pdfMenu && (
               <div className="pdf-menu">
                 <button onClick={() => downloadPdf(false)}>
-                  <Square size={17} /> Blank Checklist PDF
+                  १.  प्रवेश नुसारे props 
                 </button>
-                <button onClick={() => downloadPdf(true)}>
-                  <CheckSquare size={17} /> Checked Checklist PDF
-                </button>
-                <button
-                  className="menu-close"
-                  onClick={() => setPdfMenu(false)}
-                >
-                  <X size={16} /> बंद करा
+                <button onClick={() => downloadPdf(false, true)}>
+                  २.  अकत्रित Props
                 </button>
               </div>
             )}

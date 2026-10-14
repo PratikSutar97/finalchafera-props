@@ -16,7 +16,7 @@ h1 span{color:#245be8}
 .subtitle{margin:5px 0 10px;color:#667085;font-size:14px}
 .updated{display:inline-flex;align-items:center;gap:7px;color:#16804a;background:#effaf3;border:1px solid #d7f2e0;border-radius:999px;padding:6px 11px;font-size:11px;font-weight:700}
 .live-dot{width:6px;height:6px;border-radius:50%;background:#20a45c}
-.tabs-card,.section-card{background:#fff;border:1px solid #e2e7f0;border-radius:18px;box-shadow:var(--shadow);overflow:visible}
+.tabs-card,.section-card{background:#fff;border:1px solid #b5b5b5;border-radius:18px;box-shadow:var(--shadow);overflow:visible}
 .tabs-card{overflow:hidden;margin-bottom:17px}
 .act-tabs{display:flex;background:#f0f3f9;border-bottom:1px solid #e3e8f1}
 .act-tab{position:relative;flex:1;padding:15px 12px;border:0;border-radius:0;background:transparent;color:#5c6679;font-weight:800;font-size:14px;transition:.18s}
@@ -35,10 +35,10 @@ h1 span{color:#245be8}
 .pdf-wrap{position:relative;flex:0 0 auto}
 .pdf-button{display:flex;align-items:center;justify-content:center;gap:8px;padding:0 16px;height:46px;border:1px solid #245be8;border-radius:12px;background:#245be8;color:#fff;font-size:12px;font-weight:800;box-shadow:0 5px 12px #245be82a;transition:.15s}
 .pdf-button:hover{background:#1745bf;transform:translateY(-1px)}
-.pdf-menu{position:absolute;top:calc(100% + 8px);right:0;width:248px;padding:7px;background:#fff;border:1px solid #e1e6ef;border-radius:13px;box-shadow:0 14px 35px #14203a24;z-index:20}
-.pdf-menu button{display:flex;align-items:center;gap:10px;width:100%;padding:11px;border:0;border-radius:8px;background:#fff;text-align:left;color:#29344b;font-size:12px;font-weight:600}
+.pdf-menu{position:absolute;top:calc(100% + 8px);right:0;width:248px;padding:5px;background:#fff;border:1px solid #0b0b0b;border-radius:13px;box-shadow:0 14px 35px #14203a24;z-index:20}
+.pdf-menu button{display:flex;align-items:center;gap:25px;width:100%;padding:15px;border:1px solid #161515;border-radius:8px;background:#fff;text-align:left;color:#29344b;font-size:15px;font-weight:800}
 .pdf-menu button:hover{background:#f0f4ff;color:#245be8}
-.pdf-menu .menu-close{border-top:1px solid #edf0f5;border-radius:0;color:#7b8495;margin-top:4px}
+
 .section-card{overflow:hidden}
 .section-heading{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:22px 23px 16px;border-bottom:1px solid #edf0f5}
 .section-kicker{display:block;color:#6d7fa5;font-size:10px;letter-spacing:.7px;font-weight:800;margin-bottom:5px}
