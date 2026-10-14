@@ -734,8 +734,8 @@ export default function App() {
         margin: [6, 6, 6, 6],
 
         filename: uniqueMode
-          ? "All_Props_Without_Duplicates.pdf"
-          : "Props_Checklist_Blank.pdf",
+          ? "अकत्रित_Props.pdf"
+          : "प्रवेश_परमाणे_props.pdf",
 
         image: {
           type: "jpeg",
@@ -958,7 +958,7 @@ export default function App() {
                   १.  प्रवेश नुसारे props 
                 </button>
                 <button onClick={() => downloadPdf(false, true)}>
-                  २.  अकत्रित Props
+                  २.  अकत्रित Props 
                 </button>
               </div>
             )}
@@ -969,7 +969,7 @@ export default function App() {
           <div className="state-card">
             <LoaderCircle className="spin" size={25} />
             <strong>Props load होत आहेत...</strong>
-            <span>Firestore शी connection होत आहे.</span>
+            {/* <span>Firestore शी connection होत आहे.</span> */}
           </div>
         ) : !firebaseConfigured ? (
           <div className="state-card">
