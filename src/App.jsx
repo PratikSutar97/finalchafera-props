@@ -24,6 +24,8 @@ import {
   Square,
   LoaderCircle,
   AlertTriangle,
+  Check,
+  Pencil,
 } from "lucide-react";
 
 const META_REF = () => doc(db, "dramaPropsMeta", "main");
@@ -134,6 +136,9 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [toast, setToast] = useState("");
+  const [sceneEntryNameDraft, setSceneEntryNameDraft] = useState("");
+  const [sceneEntryNameEditing, setSceneEntryNameEditing] = useState(false);
+  const [sceneEntryNameSaving, setSceneEntryNameSaving] = useState(false);
 
   useEffect(() => {
     if (!firebaseConfigured) {
@@ -246,6 +251,14 @@ export default function App() {
   const progress = currentItems.length
     ? Math.round((checkedCount / currentItems.length) * 100)
     : 0;
+  const savedSceneEntryName = String(
+    sectionData[currentSection?.id]?.sceneEntryName || "",
+  ).trim();
+
+  useEffect(() => {
+    setSceneEntryNameDraft(savedSceneEntryName);
+    setSceneEntryNameEditing(!savedSceneEntryName);
+  }, [currentSection?.id, savedSceneEntryName]);
 
   useEffect(() => {
     if (!search.trim()) return;
@@ -379,6 +392,79 @@ export default function App() {
     }
   }
 
+  // An अंक is represented by its first प्रवेश document in the existing
+  // dramaProps collection. This keeps the current Firestore data model intact.
+  async function createAct() {
+    setError("");
+    try {
+      const nextAct = Math.max(0, ...acts) + 1;
+      const sectionId = `act${nextAct}_pravesh1`;
+      const ref = doc(db, "dramaProps", sectionId);
+
+      await runTransaction(db, async (tx) => {
+        const existing = await tx.get(ref);
+        if (existing.exists()) {
+          throw new Error(`अंक ${nextAct} आधीपासून अस्तित्वात आहे.`);
+        }
+        tx.set(ref, {
+          title: `अंक ${nextAct} - प्रवेश 1`,
+          act: nextAct,
+          pravesh: 1,
+          items: {},
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        await updateMeta(tx);
+      });
+
+      setSelectedAct(nextAct);
+      setSelectedSection(sectionId);
+      setSearch("");
+      setToast(`अंक ${nextAct} आणि प्रवेश 1 तयार झाला.`);
+    } catch (e) {
+      setError(`नवीन अंक तयार करता आला नाही: ${e.message}`);
+    }
+  }
+
+  async function createEntry() {
+    if (!acts.includes(selectedAct)) {
+      setError("प्रवेश तयार करण्यापूर्वी नवीन अंक तयार करा.");
+      return;
+    }
+
+    setError("");
+    try {
+      const existingEntries = sections
+        .filter((section) => getAct(section.id) === selectedAct)
+        .map((section) => getPravesh(section.id));
+      const nextEntry = Math.max(0, ...existingEntries) + 1;
+      const sectionId = `act${selectedAct}_pravesh${nextEntry}`;
+      const ref = doc(db, "dramaProps", sectionId);
+
+      await runTransaction(db, async (tx) => {
+        const existing = await tx.get(ref);
+        if (existing.exists()) {
+          throw new Error(`प्रवेश ${nextEntry} आधीपासून अस्तित्वात आहे.`);
+        }
+        tx.set(ref, {
+          title: `अंक ${selectedAct} - प्रवेश ${nextEntry}`,
+          act: selectedAct,
+          pravesh: nextEntry,
+          items: {},
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        await updateMeta(tx);
+      });
+
+      setSelectedSection(sectionId);
+      setSearch("");
+      setToast(`अंक ${selectedAct} मध्ये प्रवेश ${nextEntry} तयार झाला.`);
+    } catch (e) {
+      setError(`नवीन प्रवेश तयार करता आला नाही: ${e.message}`);
+    }
+  }
+
   async function addProp(sectionId, name) {
     const id = `custom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     await runTransaction(db, async (tx) => {
@@ -404,6 +490,69 @@ export default function App() {
     });
   }
 
+  async function updateSceneEntryName(sectionId, sceneEntryName) {
+    setError("");
+    try {
+      const ref = doc(db, "dramaProps", sectionId);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists()) {
+          throw new Error("अंक / प्रवेश सापडला नाही.");
+        }
+        tx.update(ref, {
+          sceneEntryName,
+          updatedAt: serverTimestamp(),
+        });
+        await updateMeta(tx);
+      });
+      return true;
+    } catch (e) {
+      console.error("Scene/entry name update failed:", e);
+      setError(`अंक / प्रवेशाचे नाव save झाले नाही: ${e.message}`);
+      return false;
+    }
+  }
+
+  async function saveSceneEntryName() {
+    if (!currentSection || sceneEntryNameSaving) return;
+    const cleanName = sceneEntryNameDraft.trim();
+    if (!cleanName) {
+      setError("दृश्य / प्रवेशाचे नाव लिहा.");
+      return;
+    }
+
+    setSceneEntryNameSaving(true);
+    const saved = await updateSceneEntryName(currentSection.id, cleanName);
+    setSceneEntryNameSaving(false);
+
+    if (saved) {
+      setSceneEntryNameDraft(cleanName);
+      setSceneEntryNameEditing(false);
+      setToast("दृश्य / प्रवेशाचे नाव save झाले.");
+    }
+  }
+
+  async function updateAssignedTo(sectionId, itemId, assignedTo) {
+    setError("");
+    try {
+      const ref = doc(db, "dramaProps", sectionId);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists() || !snap.data().items?.[itemId]) {
+          throw new Error("प्रॉप सापडला नाही.");
+        }
+        tx.update(ref, {
+          [`items.${itemId}.assignedTo`]: assignedTo,
+          updatedAt: serverTimestamp(),
+        });
+        await updateMeta(tx);
+      });
+    } catch (e) {
+      console.error("Assigned person update failed:", e);
+      setError(`प्रॉप कोणाकडे आहे हे save झाले नाही: ${e.message}`);
+    }
+  }
+
   async function deleteProp(section, itemId, item) {
     if (
       !window.confirm(
@@ -425,6 +574,7 @@ export default function App() {
           originalSectionTitle: section.title,
           originalItemId: itemId,
           name: live.name,
+          assignedTo: live.assignedTo || "",
           checked: !!live.checked,
           custom: !!live.custom,
           order: Number(live.order || 0),
@@ -460,6 +610,7 @@ export default function App() {
         tx.update(sectionRef, {
           [`items.${restoreId}`]: {
             name: deleted.name,
+            assignedTo: deleted.assignedTo || "",
             checked: !!deleted.checked,
             custom: !!deleted.custom,
             order: Number(deleted.order || 0),
@@ -550,7 +701,9 @@ export default function App() {
       </div>
     `;
 
-      // OPTION 3: All props without duplicates
+      // OPTION 3: All props without duplicates.
+      // If the same prop is assigned to different people in different entries,
+      // retain all distinct assignee names in the consolidated PDF.
       if (uniqueMode) {
         const uniqueProps = new Map();
 
@@ -569,7 +722,15 @@ export default function App() {
             const normalizedName = name.toLocaleLowerCase();
 
             if (!uniqueProps.has(normalizedName)) {
-              uniqueProps.set(normalizedName, name);
+              uniqueProps.set(normalizedName, {
+                name,
+                assignedTo: new Set(),
+              });
+            }
+
+            const assignedTo = String(item?.assignedTo || "").trim();
+            if (assignedTo) {
+              uniqueProps.get(normalizedName).assignedTo.add(assignedTo);
             }
           }
         }
@@ -586,8 +747,9 @@ export default function App() {
 
         let index = 0;
 
-        for (const name of uniqueProps.values()) {
+        for (const prop of uniqueProps.values()) {
           index++;
+          const people = [...prop.assignedTo].join(", ");
 
           html += `
           <div style="
@@ -603,9 +765,14 @@ export default function App() {
             <span style="min-width:18px;color:#555;">
               ${index}.
             </span>
-            <span style="flex:1;min-width:0;">
-              ${escapeText(name)}
+            <span style="min-width:0;">
+              ${escapeText(prop.name)}
             </span>
+            ${
+              people
+                ? `<span style="margin-left:12px;color:#555;white-space:normal;">${escapeText(people)}</span>`
+                : ""
+            }
           </div>
         `;
         }
@@ -637,6 +804,12 @@ export default function App() {
           `;
           }
 
+          const sectionDisplayTitle =
+            section.title || `प्रवेश ${getPravesh(section.id)}`;
+          const sceneEntryName = String(
+            sectionData[section.id]?.sceneEntryName || "",
+          ).trim();
+
           html += `
           <h3 style="
             font-size:13px;
@@ -645,7 +818,12 @@ export default function App() {
             border-bottom:1px solid #333;
             break-after:avoid;
           ">
-            ${escapeText(section.title || `प्रवेश ${getPravesh(section.id)}`)}
+            ${escapeText(sectionDisplayTitle)}
+            ${
+              sceneEntryName
+                ? `<span style="margin-left:12px;font-size:11px;font-weight:normal;color:#555;">${escapeText(sceneEntryName)}</span>`
+                : ""
+            }
           </h3>
         `;
 
@@ -699,9 +877,14 @@ export default function App() {
                   : ""
               }
 
-              <span style="flex:1;min-width:0;">
+              <span style="min-width:0;">
                 ${escapeText(item?.name || "")}
               </span>
+              ${
+                item?.assignedTo
+                  ? `<span style="margin-left:14px;color:#555;min-width:0;white-space:normal;">${escapeText(item.assignedTo)}</span>`
+                  : ""
+              }
             </div>
           `;
           });
@@ -733,9 +916,7 @@ export default function App() {
       const options = {
         margin: [6, 6, 6, 6],
 
-        filename: uniqueMode
-          ? "अकत्रित_Props.pdf"
-          : "प्रवेश_परमाणे_props.pdf",
+        filename: uniqueMode ? "अकत्रित_Props.pdf" : "प्रवेश_परमाणे_props.pdf",
 
         image: {
           type: "jpeg",
@@ -891,6 +1072,14 @@ export default function App() {
         )}
         {toast && <div className="toast">{toast}</div>}
 
+        <StructureManager
+          hasActs={acts.length > 0}
+          disabled={loading || !firebaseConfigured}
+          selectedAct={selectedAct}
+          onCreateAct={createAct}
+          onCreateEntry={createEntry}
+        />
+
         <section className="tabs-card">
           <div className="act-tabs" role="tablist" aria-label="अंक निवडा">
             {acts.map((act) => (
@@ -955,10 +1144,10 @@ export default function App() {
             {pdfMenu && (
               <div className="pdf-menu">
                 <button onClick={() => downloadPdf(false)}>
-                  १.  प्रवेश नुसारे props 
+                  १. प्रवेश नुसारे props
                 </button>
                 <button onClick={() => downloadPdf(false, true)}>
-                  २.  अकत्रित Props 
+                  २. अकत्रित Props
                 </button>
               </div>
             )}
@@ -980,28 +1169,151 @@ export default function App() {
         ) : !sections.length ? (
           <div className="state-card">
             <FileText size={28} />
-            <strong>Firestore मध्ये sections सापडले नाहीत</strong>
+            <strong>अजून कोणतेही अंक किंवा प्रवेश तयार केलेले नाहीत</strong>
             <span>
-              dramaProps collection मध्ये act1_pravesh1 सारखी documents असावीत.
+              वरच्या “नवीन अंक तयार करा” बटणावर क्लिक करून सुरुवात करा.
             </span>
           </div>
         ) : currentSection ? (
           <section className="section-card">
             <div className="section-heading">
-              <div>
+              <div style={{ flex: "1 1 auto", minWidth: 0 }}>
                 <span className="section-kicker">
                   अंक {getAct(currentSection.id)} · प्रवेश{" "}
                   {getPravesh(currentSection.id)}
                 </span>
-                <h2>{currentSection.title}</h2>
+                <div className="section-title-row">
+                  <h2 style={{ margin: 0 }}>{currentSection.title}</h2>
+                </div>
+
+                <div
+                  className="scene-entry-name-row"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    width: "100%",
+                    minWidth: 0,
+                    marginTop: "8px",
+                  }}
+                >
+                  {sceneEntryNameEditing ? (
+                    <>
+                      <input
+                        key={`${currentSection.id}-scene-name`}
+                        type="text"
+                        aria-label="दृश्य / प्रवेशाचे नाव"
+                        value={sceneEntryNameDraft}
+                        onChange={(e) => setSceneEntryNameDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            saveSceneEntryName();
+                          }
+                        }}
+                        placeholder="दृश्य / प्रवेशाचे नाव..."
+                        disabled={sceneEntryNameSaving}
+                        style={{
+                          flex: "1 1 auto",
+                          minWidth: 0,
+                          maxWidth: "360px",
+                          height: "38px",
+                          padding: "7px 10px",
+                          border: "1px solid #d7deea",
+                          borderRadius: "9px",
+                          background: "#fff",
+                          color: "#243047",
+                          font: "inherit",
+                          fontSize: "13px",
+                          boxSizing: "border-box",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        aria-label="दृश्य / प्रवेशाचे नाव save करा"
+                        title="नाव save करा"
+                        onClick={saveSceneEntryName}
+                        disabled={
+                          sceneEntryNameSaving || !sceneEntryNameDraft.trim()
+                        }
+                        style={{
+                          flex: "0 0 36px",
+                          width: "36px",
+                          height: "36px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: "1px solid #16a34a",
+                          borderRadius: "9px",
+                          background: "#16a34a",
+                          color: "#fff",
+                          cursor: sceneEntryNameSaving ? "wait" : "pointer",
+                          opacity:
+                            sceneEntryNameSaving || !sceneEntryNameDraft.trim()
+                              ? 0.6
+                              : 1,
+                        }}
+                      >
+                        {sceneEntryNameSaving ? (
+                          <LoaderCircle className="spin" size={17} />
+                        ) : (
+                          <Check size={18} />
+                        )}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span
+                        title={savedSceneEntryName}
+                        style={{
+                          flex: "0 1 auto",
+                          minWidth: 0,
+                          maxWidth: "calc(100% - 42px)",
+                          whiteSpace: "normal",
+                          overflowWrap: "anywhere",
+                          color: "#52627a",
+                          fontSize: "13px",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {savedSceneEntryName}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="दृश्य / प्रवेशाचे नाव edit करा"
+                        title="नाव edit करा"
+                        onClick={() => {
+                          setSceneEntryNameDraft(savedSceneEntryName);
+                          setSceneEntryNameEditing(true);
+                        }}
+                        style={{
+                          flex: "0 0 34px",
+                          width: "34px",
+                          height: "34px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: "1px solid #d7deea",
+                          borderRadius: "9px",
+                          background: "#fff",
+                          color: "#245be8",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <Pencil size={16} />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
+
               <div className="count-chip">
                 {checkedCount}
                 <span>/</span>
-                {currentItems.length} पूर्ण
+                {currentItems.length} total
               </div>
             </div>
-            <div className="progress-area">
+            {/* <div className="progress-area">
               <div className="progress-label">
                 <span>Checklist progress</span>
                 <strong>{progress}%</strong>
@@ -1012,7 +1324,7 @@ export default function App() {
                   style={{ width: `${progress}%` }}
                 />
               </div>
-            </div>
+            </div> */}
             <div className="items-list">
               {!filteredItems.length ? (
                 <div className="empty-state">
@@ -1040,15 +1352,35 @@ export default function App() {
                     />
                     <span className="item-number">{index + 1}</span>
                     <span className="item-name">{item.name}</span>
-                    {item.custom && <span className="custom-tag">Custom</span>}
-                    <button
-                      className="delete-button"
-                      title="हा प्रॉप delete करा"
-                      aria-label={`${item.name} delete करा`}
-                      onClick={() => deleteProp(currentSection, itemId, item)}
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <textarea
+                      aria-label={`${item.name} कोणाकडे आहे`}
+                      title="हा प्रॉप कोणाकडे आहे?"
+                      rows={1}
+                      defaultValue={item.assignedTo || ""}
+                      placeholder="कोणाकडे आहे?"
+                      onBlur={(e) =>
+                        updateAssignedTo(
+                          currentSection.id,
+                          itemId,
+                          e.target.value.trim(),
+                        )
+                      }
+                      style={{
+                        width: "min(220px, 32%)",
+                        minWidth: "120px",
+                        minHeight: "38px",
+                        marginLeft: "auto",
+                        padding: "8px 10px",
+                        border: "1px solid #d7deea",
+                        borderRadius: "9px",
+                        background: "#fff",
+                        color: "#243047",
+                        font: "inherit",
+                        fontSize: "14px",
+                        resize: "vertical",
+                        boxSizing: "border-box",
+                      }}
+                    />
                   </div>
                 ))
               )}
@@ -1150,6 +1482,26 @@ export default function App() {
   );
 }
 
+function StructureManager({
+  hasActs,
+  disabled,
+  selectedAct,
+  onCreateAct,
+  onCreateEntry,
+}) {
+  const [busy, setBusy] = useState("");
+
+  async function run(action, callback) {
+    if (busy) return;
+    setBusy(action);
+    try {
+      await callback();
+    } finally {
+      setBusy("");
+    }
+  }
+}
+
 function AddPropForm({ onAdd }) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1190,7 +1542,7 @@ function AddPropForm({ onAdd }) {
         ) : (
           <Plus size={17} />
         )}{" "}
-        प्रॉप जोडा
+        नवीन प्रॉप जोडा
       </button>
       {localError && <p className="inline-error">{localError}</p>}
     </form>
