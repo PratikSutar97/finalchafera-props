@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import html2pdf from "html2pdf.js";
 import html2canvas from "html2canvas";
 import {
@@ -26,9 +27,28 @@ import {
   AlertTriangle,
   Check,
   Pencil,
+  LogIn,
+  LogOut,
+  Save,
 } from "lucide-react";
 
 const META_REF = () => doc(db, "dramaPropsMeta", "main");
+// Set VITE_ADMIN_PIN in your local .env file. This client-side PIN is a UI gate,
+// not secure authorization for Firestore data.
+const ADMIN_PIN = import.meta.env.VITE_ADMIN_PIN || "";
+const adminIconStyle = {
+  width: "32px",
+  height: "32px",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  border: "1px solid #d7deea",
+  borderRadius: "8px",
+  background: "#fff",
+  color: "#245be8",
+  cursor: "pointer",
+  flex: "0 0 auto",
+};
 
 function sortSections(list) {
   return [...list].sort((a, b) => {
@@ -139,6 +159,12 @@ export default function App() {
   const [sceneEntryNameDraft, setSceneEntryNameDraft] = useState("");
   const [sceneEntryNameEditing, setSceneEntryNameEditing] = useState(false);
   const [sceneEntryNameSaving, setSceneEntryNameSaving] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [adminPin, setAdminPin] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [editingPropId, setEditingPropId] = useState("");
+  const [editingPropName, setEditingPropName] = useState("");
 
   useEffect(() => {
     if (!firebaseConfigured) {
@@ -552,6 +578,63 @@ export default function App() {
       setError(`प्रॉप कोणाकडे आहे हे save झाले नाही: ${e.message}`);
     }
   }
+
+  async function updatePropName(sectionId, itemId, name) {
+    const cleanName = name.trim();
+    if (!cleanName) {
+      setError("प्रॉपचे नाव रिकामे ठेवता येणार नाही.");
+      return false;
+    }
+    setError("");
+    try {
+      const ref = doc(db, "dramaProps", sectionId);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists() || !snap.data().items?.[itemId]) {
+          throw new Error("प्रॉप सापडला नाही.");
+        }
+        tx.update(ref, {
+          [`items.${itemId}.name`]: cleanName,
+          updatedAt: serverTimestamp(),
+        });
+        await updateMeta(tx);
+      });
+      setEditingPropId("");
+      setEditingPropName("");
+      setToast("प्रॉपचे नाव अपडेट झाले.");
+      return true;
+    } catch (e) {
+      setError(`प्रॉपचे नाव अपडेट झाले नाही: ${e.message}`);
+      return false;
+    }
+  }
+
+ function submitAdminLogin(e) {
+  e.preventDefault();
+
+  const enteredPin = String(adminPin).trim();
+
+  if (!/^[0-9]{4}$/.test(enteredPin)) {
+    setLoginError("कृपया 4 अंकी code टाका.");
+    return;
+  }
+
+  if (!ADMIN_PIN) {
+    setLoginError("Admin PIN सेट केलेला नाही.");
+    return;
+  }
+
+  if (enteredPin !== String(ADMIN_PIN).trim()) {
+    setLoginError("चुकीचा code. पुन्हा प्रयत्न करा.");
+    return;
+  }
+
+  setIsAdmin(true);
+  setLoginOpen(false);
+  setAdminPin("");
+  setLoginError("");
+  setToast("Admin mode सुरू झाला.");
+}
 
   async function deleteProp(section, itemId, item) {
     if (
@@ -1048,15 +1131,51 @@ export default function App() {
       <div className="container">
         <header className="page-header">
           {/* <div className="eyebrow"><span className="eyebrow-dot" /> STAGE PRODUCTION CHECKLIST</div> */}
-          <h1>
-            फायनल चा फेरा <span>— प्रॉप्स</span>
-          </h1>
+          <div style={{ position: "relative", paddingRight: "44px" }}>
+            <h1>
+              फायनल चा फेरा <span>— प्रॉप्स</span>
+            </h1>
+            <button
+              type="button"
+              aria-label={isAdmin ? "Admin logout" : "Admin login"}
+              title={isAdmin ? "Admin logout" : "Admin login"}
+              onClick={() => {
+                if (isAdmin) {
+                  setIsAdmin(false);
+                  setEditingPropId("");
+                  setToast("Admin mode बंद झाला.");
+                } else {
+                  setLoginOpen(true);
+                  setLoginError("");
+                }
+              }}
+              style={{
+                position: "absolute",
+                top: "0",
+                right: "0",
+                width: "36px",
+                height: "36px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: "1px solid #d7deea",
+                borderRadius: "10px",
+                background: "#fff",
+                color: "#245be8",
+                cursor: "pointer",
+              }}
+            >
+              {isAdmin ? <LogOut size={18} /> : <LogIn size={18} />}
+            </button>
+          </div>
 
           <div className="updated">
             <span className="live-dot" />
-            Last updated at — {formatDate(lastUpdated)}
+            {formatDate(lastUpdated)}
             {lastUpdatedDevice && (
-              <span className="updated-device"> · {lastUpdatedDevice}</span>
+              <span className="updated-device">
+                {" · " + lastUpdatedDevice.split(" · ").pop()}
+              </span>
             )}
           </div>
         </header>
@@ -1351,7 +1470,79 @@ export default function App() {
                       aria-label={item.name}
                     />
                     <span className="item-number">{index + 1}</span>
-                    <span className="item-name">{item.name}</span>
+                    {isAdmin && editingPropId === itemId ? (
+                      <input
+                        aria-label="प्रॉपचे नाव बदला"
+                        value={editingPropName}
+                        onChange={(e) => setEditingPropName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            updatePropName(currentSection.id, itemId, editingPropName);
+                          }
+                          if (e.key === "Escape") setEditingPropId("");
+                        }}
+                        style={{
+                          flex: "1 1 auto",
+                          minWidth: 0,
+                          width: "100px",
+                          padding: "7px 8px",
+                          border: "1px solid #9bb5f7",
+                          borderRadius: "8px",
+                          font: "inherit",
+                        }}
+                      />
+                    ) : (
+                      <span className="item-name">{item.name}</span>
+                    )}
+                    {isAdmin && (
+                      <div style={{ display: "inline-flex", gap: "4px", flex: "0 0 auto" }}>
+                        {editingPropId === itemId ? (
+                          <>
+                            <button
+                              type="button"
+                              title="नाव save करा"
+                              aria-label="नाव save करा"
+                              onClick={() => updatePropName(currentSection.id, itemId, editingPropName)}
+                              style={adminIconStyle}
+                            >
+                              <Save size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              title="रद्द करा"
+                              aria-label="रद्द करा"
+                              onClick={() => setEditingPropId("")}
+                              style={adminIconStyle}
+                            >
+                              <X size={16} />
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            title="प्रॉप edit करा"
+                            aria-label="प्रॉप edit करा"
+                            onClick={() => {
+                              setEditingPropId(itemId);
+                              setEditingPropName(item.name || "");
+                            }}
+                            style={adminIconStyle}
+                          >
+                            <Pencil size={16} />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          title="प्रॉप delete करा"
+                          aria-label="प्रॉप delete करा"
+                          onClick={() => deleteProp(currentSection, itemId, item)}
+                          style={{ ...adminIconStyle, color: "#dc2626" }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    )}
                     <textarea
                       aria-label={`${item.name} कोणाकडे आहे`}
                       title="हा प्रॉप कोणाकडे आहे?"
@@ -1385,10 +1576,12 @@ export default function App() {
                 ))
               )}
             </div>
-            <AddPropForm
-              key={currentSection.id}
-              onAdd={(name) => addProp(currentSection.id, name)}
-            />
+            {isAdmin && (
+              <AddPropForm
+                key={currentSection.id}
+                onAdd={(name) => addProp(currentSection.id, name)}
+              />
+            )}
           </section>
         ) : null}
 
@@ -1413,6 +1606,135 @@ export default function App() {
       >
         <ArrowUp size={20} />
       </button>
+
+      {loginOpen && createPortal(
+        <div
+          className="admin-login-overlay"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setLoginOpen(false);
+          }}
+          style={{
+  position: "fixed",
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  zIndex: 100000,
+
+  width: "100vw",
+  height: "100dvh",
+  maxWidth: "100vw",
+
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+
+  padding: "16px",
+  paddingTop: "max(16px, env(safe-area-inset-top))",
+  paddingBottom: "max(16px, env(safe-area-inset-bottom))",
+
+  boxSizing: "border-box",
+  overflowX: "hidden",
+  overflowY: "auto",
+
+  background: "rgba(20, 29, 48, 0.58)",
+  backdropFilter: "blur(5px)",
+  WebkitBackdropFilter: "blur(5px)",
+}}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-login-title"
+            style={{
+  width: "min(360px, calc(100vw - 32px))",
+  maxWidth: "100%",
+  minWidth: 0,
+  flex: "0 1 auto",
+
+  margin: "auto",
+  padding: "20px 16px",
+
+  borderRadius: "16px",
+  background: "#fff",
+  boxShadow: "0 20px 60px rgba(0,0,0,.2)",
+
+  boxSizing: "border-box",
+  overflowX: "hidden",
+  overflowY: "auto",
+}}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
+              <h2 id="admin-login-title" style={{ margin: 0, fontSize: "19px" }}>Admin Login</h2>
+              <button
+                type="button"
+                aria-label="Close login"
+                onClick={() => setLoginOpen(false)}
+                style={adminIconStyle}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={submitAdminLogin} style={{ marginTop: "18px" }}>
+              <label htmlFor="admin-pin" style={{ display: "block", marginBottom: "8px", color: "#52627a", fontSize: "13px" }}>
+                4 digit admin code
+              </label>
+              <input
+                id="admin-pin"
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]{4}"
+                maxLength={4}
+                autoComplete="off"
+                value={adminPin}
+                onChange={(e) => {
+                  setAdminPin(e.target.value.replace(/\\D/g, "").slice(0, 4));
+                  setLoginError("");
+                }}
+                placeholder="••••"
+                autoFocus
+                style={{
+                  display: "block",
+                  width: "100%",
+                  maxWidth: "100%",
+                  minWidth: 0,
+                  boxSizing: "border-box",
+                  padding: "12px",
+                  border: "1px solid #d7deea",
+                  borderRadius: "10px",
+                  fontSize: "20px",
+                  letterSpacing: "8px",
+                  textAlign: "center",
+                }}
+              />
+              {loginError && <p style={{ color: "#dc2626", fontSize: "12px", margin: "8px 0 0" }}>{loginError}</p>}
+              <button
+                type="submit"
+                disabled={adminPin.length !== 4}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  maxWidth: "100%",
+                  minWidth: 0,
+                  boxSizing: "border-box",
+                  marginTop: "14px",
+                  padding: "11px",
+                  border: 0,
+                  borderRadius: "10px",
+                  background: "#245be8",
+                  color: "#fff",
+                  fontWeight: 700,
+                  cursor: adminPin.length === 4 ? "pointer" : "not-allowed",
+                  opacity: adminPin.length === 4 ? 1 : .55,
+                }}
+              >
+                Login
+              </button>
+            </form>
+          </section>
+        </div>,
+        document.body
+      )}
 
       {trashOpen && (
         <div
@@ -1542,7 +1864,7 @@ function AddPropForm({ onAdd }) {
         ) : (
           <Plus size={17} />
         )}{" "}
-        नवीन प्रॉप जोडा
+        Add
       </button>
       {localError && <p className="inline-error">{localError}</p>}
     </form>
