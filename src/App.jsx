@@ -2276,15 +2276,13 @@ export default function App() {
                         }}
                     >
                         <div style={{ minWidth: 0, flex: "1 1 220px" }}>
-                            
                             <div
                                 style={{
                                     fontSize: "12px",
                                     color: "#64748b",
                                     marginTop: "3px",
                                 }}
-                            >
-                            </div>
+                            ></div>
                         </div>
                         <label
                             style={{
