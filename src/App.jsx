@@ -208,11 +208,17 @@ export default function App() {
 
     const [lastUpdatedDevice, setLastUpdatedDevice] = useState("");
 
+    // Admin-controlled permission: allow normal users to edit assigned names even after a prop is checked.
+    const [allowUsersEditAssignedNames, setAllowUsersEditAssignedNames] =
+        useState(false);
+
     const [selectedAct, setSelectedAct] = useState(1);
 
     const [selectedSection, setSelectedSection] = useState("");
 
     const [search, setSearch] = useState("");
+
+    const [selectedPerson, setSelectedPerson] = useState("");
 
     const [pdfMenu, setPdfMenu] = useState(false);
 
@@ -411,10 +417,14 @@ export default function App() {
                     setLastUpdated(meta.lastUpdatedAt || null);
 
                     setLastUpdatedDevice(meta.lastUpdatedDevice || "");
+                    setAllowUsersEditAssignedNames(
+                        meta.allowUsersEditAssignedNames === true,
+                    );
                 } else {
                     setLastUpdated(null);
 
                     setLastUpdatedDevice("");
+                    setAllowUsersEditAssignedNames(false);
                 }
             },
 
@@ -481,12 +491,59 @@ export default function App() {
         [sectionData, currentSection],
     );
 
-    const filteredItems = currentItems.filter(([, item]) =>
-        String(item?.name || "")
-            .toLowerCase()
+    // Build a unique list of assigned people for the person dropdown.
+    const assignedPeople = useMemo(() => {
+        const peopleByKey = new Map();
 
-            .includes(search.trim().toLowerCase()),
-    );
+        sections.forEach((section) => {
+            const items = sectionData[section.id]?.items || section.items || {};
+            Object.values(items).forEach((item) => {
+                const person = String(item?.assignedTo || "").trim();
+                if (!person) return;
+                const key = person.replace(/\s+/g, " ").toLocaleLowerCase();
+                if (!peopleByKey.has(key))
+                    peopleByKey.set(key, person.replace(/\s+/g, " "));
+            });
+        });
+
+        return [...peopleByKey.values()].sort((a, b) =>
+            a.localeCompare(b, undefined, { sensitivity: "base" }),
+        );
+    }, [sections, sectionData]);
+
+    // The text box searches prop names only. The dropdown filters by assigned person.
+    // When both are selected, both filters apply to the results.
+    const globalSearchResults = useMemo(() => {
+        const needle = search.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+        const personNeedle = selectedPerson.trim().toLocaleLowerCase();
+        if (!needle && !personNeedle) return [];
+
+        return sections.flatMap((section) => {
+            const items = sortItems(
+                sectionData[section.id]?.items || section.items || {},
+            );
+
+            return items
+                .filter(([, item]) => {
+                    const propName = String(item?.name || "")
+                        .replace(/\s+/g, " ")
+                        .trim()
+                        .toLocaleLowerCase();
+                    const assignedPerson = String(item?.assignedTo || "")
+                        .replace(/\s+/g, " ")
+                        .trim()
+                        .toLocaleLowerCase();
+
+                    return (
+                        (!needle || propName.includes(needle)) &&
+                        (!personNeedle || assignedPerson === personNeedle)
+                    );
+                })
+                .map(([itemId, item]) => ({ section, itemId, item }));
+        });
+    }, [search, selectedPerson, sections, sectionData]);
+
+    const filteredItems = currentItems;
 
     const checkedCount = currentItems.filter(
         ([, item]) => item?.checked,
@@ -506,28 +563,6 @@ export default function App() {
         setSceneEntryNameEditing(!savedSceneEntryName);
     }, [currentSection?.id, savedSceneEntryName]);
 
-    useEffect(() => {
-        if (!search.trim()) return;
-
-        const needle = search.trim().toLowerCase();
-
-        const match = sections.find((section) =>
-            sortItems(sectionData[section.id]?.items || section.items).some(
-                ([, item]) =>
-                    String(item?.name || "")
-                        .toLowerCase()
-
-                        .includes(needle),
-            ),
-        );
-
-        if (match) {
-            setSelectedAct(getAct(match.id));
-
-            setSelectedSection(match.id);
-        }
-    }, [search, sections, sectionData]);
-
     function getRegisteredDeviceName() {
         return getDeviceName();
     }
@@ -543,6 +578,28 @@ export default function App() {
             transaction.set(META_REF(), metaData, { merge: true });
         } else {
             await setDoc(META_REF(), metaData, { merge: true });
+        }
+    }
+
+    async function setUserNameEditingPermission(enabled) {
+        if (!isAdmin) return;
+        try {
+            await setDoc(
+                META_REF(),
+                {
+                    allowUsersEditAssignedNames: enabled,
+                    lastUpdatedAt: serverTimestamp(),
+                },
+                { merge: true },
+            );
+            setToast(
+                enabled
+                    ? "Normal users आता checked प्रॉपचे नावही edit करू शकतात."
+                    : "Normal users साठी checked प्रॉपचे नाव edit करणे बंद केले.",
+            );
+        } catch (e) {
+            console.error("Could not update user name-edit permission:", e);
+            setError(`Permission update झाले नाही: ${e.message}`);
         }
     }
 
@@ -563,9 +620,16 @@ export default function App() {
             );
         });
 
-        // Never allow a checked occurrence without an assigned person.
-        return !matchingItems.some(
+        const hasAssignee = matchingItems.some(
             (item) => String(item.assignedTo || "").trim() !== "",
+        );
+        const isAlreadyChecked = matchingItems.some(
+            (item) => item?.checked === true,
+        );
+
+        return (
+            !hasAssignee ||
+            (!isAdmin && isAlreadyChecked && !allowUsersEditAssignedNames)
         );
     }
 
@@ -635,6 +699,17 @@ export default function App() {
                         String(item.assignedTo || "").trim(),
                     )?.assignedTo || "",
                 ).trim();
+
+                if (
+                    !isAdmin &&
+                    !allowUsersEditAssignedNames &&
+                    !checked &&
+                    currentItems.some((item) => item?.checked === true)
+                ) {
+                    throw new Error(
+                        "हा प्रॉप checked आहे. Uncheck करण्याचा अधिकार फक्त Admin ला आहे.",
+                    );
+                }
 
                 if (checked && !assignedTo) {
                     throw new Error(
@@ -925,6 +1000,27 @@ export default function App() {
                     const snap = await tx.get(ref);
                     if (snap.exists())
                         snapshots.set(id, { ref, data: snap.data() });
+                }
+
+                const currentMatchingItems = matchingOccurrences
+                    .map((occurrence) => {
+                        const section = snapshots.get(occurrence.sectionId);
+                        return section?.data.items?.[occurrence.itemId];
+                    })
+                    .filter(
+                        (item) =>
+                            item?.name?.trim().toLocaleLowerCase() ===
+                            targetName,
+                    );
+
+                if (
+                    !isAdmin &&
+                    !allowUsersEditAssignedNames &&
+                    currentMatchingItems.some((item) => item?.checked === true)
+                ) {
+                    throw new Error(
+                        "हा प्रॉप checked आहे. व्यक्तीचे नाव बदलण्याची परवानगी सध्या बंद आहे. Admin शी संपर्क करा.",
+                    );
                 }
 
                 for (const occurrence of matchingOccurrences) {
@@ -1385,11 +1481,16 @@ export default function App() {
                     const act = getAct(section.id);
 
                     if (act !== activeAct) {
+                        const startsNewPage = activeAct !== null;
                         activeAct = act;
 
                         html += `
 
-            <div style="
+            ${startsNewPage ? '<div class="html2pdf__page-break" style="display:block;width:100%;height:1px;min-height:1px;page-break-after:always;break-after:page;"></div>' : ""}
+
+            <div class="${startsNewPage ? "act-page-start" : ""}" style="
+
+              ${startsNewPage ? "page-break-before:always !important; break-before:page !important;" : ""}
 
               margin-top:18px;
 
@@ -1615,70 +1716,22 @@ export default function App() {
                 pagebreak: {
                     mode: ["css", "legacy"],
 
+                    // The marker is placed between the previous act and the next act.
+                    // Force a page break AFTER the marker (not before the heading).
+                    after: [".html2pdf__page-break"],
+
+                    before: [".act-page-start"],
+
                     avoid: ["h2", "h3"],
                 },
             };
 
-            const canvas = await html2canvas(source, {
-                scale: 2,
-
-                backgroundColor: "#ffffff",
-
-                useCORS: true,
-
-                logging: true,
-
-                width: source.scrollWidth,
-
-                height: source.scrollHeight,
-
-                windowWidth: Math.max(window.innerWidth, source.scrollWidth),
-
-                windowHeight: Math.max(window.innerHeight, source.scrollHeight),
-
-                scrollX: 0,
-
-                scrollY: 0,
-            });
-
-            if (!canvas || canvas.width < 10 || canvas.height < 10) {
-                throw new Error("PDF साठी content capture झाले नाही.");
-            }
-
-            // Check that the captured canvas isn't entirely white.
-
-            const ctx = canvas.getContext("2d");
-
-            const pixels = ctx.getImageData(
-                0,
-                0,
-                canvas.width,
-                canvas.height,
-            ).data;
-
-            let nonWhitePixels = 0;
-
-            for (let i = 0; i < pixels.length; i += 4) {
-                if (
-                    pixels[i] < 245 ||
-                    pixels[i + 1] < 245 ||
-                    pixels[i + 2] < 245
-                ) {
-                    nonWhitePixels++;
-
-                    if (nonWhitePixels > 100) break;
-                }
-            }
-
-            if (nonWhitePixels === 0) {
-                throw new Error(
-                    "HTML canvas पूर्ण पांढरा आहे. Browser content capture करत नाही.",
-                );
-            }
-
+            // Generate from the HTML element directly so html2pdf can honor
+            // page breaks between acts. Converting the whole document to one
+            // canvas first would remove the act-level page-break boundaries.
             const pdf = await html2pdf()
                 .set(options)
-                .from(canvas)
+                .from(source)
                 .toPdf()
                 .get("pdf");
 
@@ -1953,68 +2006,182 @@ export default function App() {
                     onCreateEntry={createEntry}
                 />
 
-                <section className="tabs-card">
-                    <div
-                        className="act-tabs"
-                        role="tablist"
-                        aria-label="अंक निवडा"
-                    >
-                        {acts.map((act) => (
-                            <button
-                                key={act}
-                                className={`act-tab ${selectedAct === act ? "active" : ""}`}
-                                onClick={() => {
-                                    setSelectedAct(act);
+                {!search.trim() && !selectedPerson && (
+                    <section className="tabs-card">
+                        <div
+                            className="act-tabs"
+                            role="tablist"
+                            aria-label="अंक निवडा"
+                        >
+                            {acts.map((act) => (
+                                <button
+                                    key={act}
+                                    className={`act-tab ${selectedAct === act ? "active" : ""}`}
+                                    onClick={() => {
+                                        setSelectedAct(act);
 
-                                    const first = sections.find(
-                                        (s) => getAct(s.id) === act,
-                                    );
+                                        const first = sections.find(
+                                            (s) => getAct(s.id) === act,
+                                        );
 
-                                    if (first) setSelectedSection(first.id);
-                                }}
-                            >
-                                अंक {act}
-                            </button>
-                        ))}
+                                        if (first) setSelectedSection(first.id);
+                                    }}
+                                >
+                                    अंक {act}
+                                </button>
+                            ))}
 
-                        {!acts.length && (
-                            <span className="muted empty-tabs">
-                                अंक उपलब्ध नाहीत
-                            </span>
-                        )}
-                    </div>
+                            {!acts.length && (
+                                <span className="muted empty-tabs">
+                                    अंक उपलब्ध नाहीत
+                                </span>
+                            )}
+                        </div>
 
-                    <div
-                        className="entry-tabs"
-                        role="tablist"
-                        aria-label="प्रवेश निवडा"
-                    >
-                        {actSections.map((section, index) => (
-                            <button
-                                key={section.id}
-                                className={`entry-tab ${selectedSection === section.id ? "active" : ""}`}
-                                onClick={() => setSelectedSection(section.id)}
-                            >
-                                प्रवेश {index + 1}
-                            </button>
-                        ))}
-                    </div>
-                </section>
+                        <div
+                            className="entry-tabs"
+                            role="tablist"
+                            aria-label="प्रवेश निवडा"
+                        >
+                            {actSections.map((section, index) => (
+                                <button
+                                    key={section.id}
+                                    className={`entry-tab ${selectedSection === section.id ? "active" : ""}`}
+                                    onClick={() =>
+                                        setSelectedSection(section.id)
+                                    }
+                                >
+                                    प्रवेश {index + 1}
+                                </button>
+                            ))}
+                        </div>
+                    </section>
+                )}
 
-                <div className="toolbar">
+                <style>{`
+                    .props-toolbar-filters {
+                        display: grid !important;
+                        grid-template-columns: minmax(0, 1fr) minmax(210px, 0.85fr) auto;
+                        align-items: stretch;
+                        gap: 10px;
+                        width: 100%;
+                        min-width: 0;
+                    }
+                    .props-toolbar-filters .search-box {
+                        grid-column: 1;
+                        width: 100%;
+                        min-width: 0;
+                        box-sizing: border-box;
+                    }
+                    .props-person-filter {
+                        grid-column: 2;
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        width: 100%;
+                        min-width: 0;
+                        min-height: 44px;
+                        box-sizing: border-box;
+                        padding: 0 12px;
+                        border: 1px solid #dce3ee;
+                        border-radius: 12px;
+                        background: #fff;
+                        color: #64748b;
+                    }
+                    .props-person-filter select {
+                        display: block;
+                        flex: 1 1 auto;
+                        width: 100%;
+                        min-width: 0;
+                        height: 42px;
+                        padding: 0 4px;
+                        border: 0;
+                        outline: 0;
+                        background: transparent;
+                        color: #243047;
+                        font: inherit;
+                        font-size: 14px;
+                        appearance: auto;
+                        -webkit-appearance: menulist;
+                    }
+                    .props-toolbar-filters .pdf-wrap {
+                        grid-column: 3;
+                        min-width: 0;
+                        justify-self: end;
+                    }
+                    .props-toolbar-filters.is-searching .pdf-wrap {
+                        grid-column: 2 / -1;
+                    }
+                    @media (max-width: 640px) {
+                        .props-toolbar-filters {
+                            grid-template-columns: minmax(0, 1fr) auto;
+                            gap: 8px;
+                        }
+                        .props-toolbar-filters .search-box {
+                            grid-column: 1 / -1;
+                        }
+                        .props-person-filter {
+                            grid-column: 1;
+                        }
+                        .props-toolbar-filters .pdf-wrap {
+                            grid-column: 2;
+                            justify-self: end;
+                            align-self: stretch;
+                            position: relative;
+                            width: auto !important;
+                            min-width: 0;
+                        }
+                        .props-toolbar-filters.is-searching .pdf-wrap {
+                            grid-column: 1 / -1;
+                        }
+                        .props-toolbar-filters .pdf-button {
+                            width: auto !important;
+                            min-width: 116px;
+                            padding: 0 12px;
+                            white-space: nowrap;
+                        }
+                        .props-toolbar-filters .pdf-menu {
+                            position: absolute;
+                            top: calc(100% + 8px);
+                            right: 0;
+                            left: auto;
+                            width: min(280px, calc(100vw - 32px)) !important;
+                            max-width: calc(100vw - 32px);
+                            box-sizing: border-box;
+                            z-index: 1000;
+                        }
+                        .props-toolbar-filters .pdf-menu button {
+                            display: block;
+                            width: 100%;
+                            min-width: 0;
+                            box-sizing: border-box;
+                            padding: 12px;
+                            white-space: normal;
+                            overflow-wrap: anywhere;
+                            line-height: 1.45;
+                            text-align: left;
+                        }
+                    }
+                `}</style>
+                <div
+                    className={`toolbar props-toolbar-filters ${search.trim() ? "is-searching" : ""}`}
+                >
                     <label className="search-box">
                         <Search size={19} />
-
                         <input
                             type="search"
                             value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="प्रॉप शोधा..."
+                            onChange={(e) => {
+                                const value = e.target.value;
+                                setSearch(value);
+                                if (value.trim()) setSelectedPerson("");
+                            }}
+                            placeholder="प्रॉपचे नाव शोधा..."
                             autoComplete="off"
                         />
-
                         {search && (
                             <button
+                                type="button"
                                 aria-label="शोध काढा"
                                 onClick={() => setSearch("")}
                             >
@@ -2022,6 +2189,47 @@ export default function App() {
                             </button>
                         )}
                     </label>
+
+                    {!search.trim() && (
+                        <div className="props-person-filter">
+                            <Users size={18} style={{ flex: "0 0 auto" }} />
+                            <select
+                                aria-label="व्यक्तीनुसार प्रॉप्स निवडा"
+                                value={selectedPerson}
+                                onChange={(e) =>
+                                    setSelectedPerson(e.target.value)
+                                }
+                            >
+                                <option value="">
+                                    {assignedPeople.length
+                                        ? "यक्तीनुसार प्रॉप्स बघा"
+                                        : "अजून व्यक्तीची नावे नाहीत"}
+                                </option>
+                                {assignedPeople.map((person) => (
+                                    <option key={person} value={person}>
+                                        {person}
+                                    </option>
+                                ))}
+                            </select>
+                            {selectedPerson && (
+                                <button
+                                    type="button"
+                                    aria-label="व्यक्तीची निवड काढा"
+                                    onClick={() => setSelectedPerson("")}
+                                    style={{
+                                        flex: "0 0 auto",
+                                        border: 0,
+                                        background: "transparent",
+                                        color: "#64748b",
+                                        cursor: "pointer",
+                                        padding: 2,
+                                    }}
+                                >
+                                    <X size={16} />
+                                </button>
+                            )}
+                        </div>
+                    )}
 
                     <div className="pdf-wrap">
                         <button
@@ -2034,16 +2242,13 @@ export default function App() {
                             ) : (
                                 <Download size={18} />
                             )}
-
                             {pdfBusy ? "PDF तयार होत आहे..." : "PDF डाउनलोड"}
                         </button>
-
                         {pdfMenu && (
                             <div className="pdf-menu">
                                 <button onClick={() => downloadPdf(false)}>
                                     १. प्रवेश नुसारे props
                                 </button>
-
                                 <button
                                     onClick={() => downloadPdf(false, true)}
                                 >
@@ -2053,6 +2258,62 @@ export default function App() {
                         )}
                     </div>
                 </div>
+
+                {isAdmin && (
+                    <section
+                        aria-label="User editing permission"
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "12px",
+                            flexWrap: "wrap",
+                            margin: "0 0 16px",
+                            padding: "12px 14px",
+                            border: "1px solid #dce5f1",
+                            borderRadius: "12px",
+                            background: "#fff",
+                        }}
+                    >
+                        <div style={{ minWidth: 0, flex: "1 1 220px" }}>
+                            
+                            <div
+                                style={{
+                                    fontSize: "12px",
+                                    color: "#64748b",
+                                    marginTop: "3px",
+                                }}
+                            >
+                            </div>
+                        </div>
+                        <label
+                            style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "8px",
+                                flex: "0 0 auto",
+                                fontWeight: 700,
+                                color: allowUsersEditAssignedNames
+                                    ? "#15803d"
+                                    : "#64748b",
+                                cursor: "pointer",
+                            }}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={allowUsersEditAssignedNames}
+                                onChange={(e) =>
+                                    setUserNameEditingPermission(
+                                        e.target.checked,
+                                    )
+                                }
+                            />
+                            {allowUsersEditAssignedNames
+                                ? "ON — Editing allowed"
+                                : "OFF — Locked"}
+                        </label>
+                    </section>
+                )}
 
                 {loading ? (
                     <div className="state-card">
@@ -2083,6 +2344,259 @@ export default function App() {
                             करा.
                         </span>
                     </div>
+                ) : search.trim() || selectedPerson ? (
+                    <section className="section-card global-search-results">
+                        <div
+                            className="section-heading"
+                            style={{ paddingBottom: "14px" }}
+                        >
+                            <div>
+                                <span className="section-kicker">
+                                    {selectedPerson
+                                        ? `व्यक्ती: ${selectedPerson}`
+                                        : "प्रॉपच्या नावानुसार सर्व अंक / प्रवेशांमध्ये शोध"}
+                                </span>
+                                <h2
+                                    style={{
+                                        margin: "4px 0 0",
+                                        fontSize: "18px",
+                                    }}
+                                >
+                                    {search.trim()
+                                        ? `प्रॉप: “${search.trim()}” · `
+                                        : ""}
+                                    {globalSearchResults.length} नोंदी
+                                </h2>
+                            </div>
+                        </div>
+
+                        {!globalSearchResults.length ? (
+                            <div className="empty-state">
+                                निवडलेल्या व्यक्तीसाठी किंवा प्रॉपच्या नावासाठी
+                                कोणत्याही अंक / प्रवेशात नोंद सापडली नाही.
+                            </div>
+                        ) : (
+                            <div className="items-list">
+                                {globalSearchResults.map(
+                                    ({ section, itemId, item }, index) => (
+                                        <div
+                                            className={`prop-row ${item.checked ? "is-checked" : ""}`}
+                                            key={`${section.id}:${itemId}`}
+                                            style={{
+                                                flexWrap: "wrap",
+                                                rowGap: "8px",
+                                                paddingTop: "12px",
+                                                paddingBottom: "12px",
+                                            }}
+                                        >
+                                            <div
+                                                style={{
+                                                    flex: "1 1 100%",
+                                                    minWidth: 0,
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: "8px",
+                                                    flexWrap: "wrap",
+                                                }}
+                                            >
+                                                <span
+                                                    className="section-kicker"
+                                                    style={{
+                                                        color: "#245be8",
+                                                        fontWeight: 700,
+                                                    }}
+                                                >
+                                                    अंक {getAct(section.id)} ·
+                                                    प्रवेश{" "}
+                                                    {getPravesh(section.id)}
+                                                </span>
+                                                <span
+                                                    style={{
+                                                        color: "#94a3b8",
+                                                        fontSize: "12px",
+                                                    }}
+                                                >
+                                                    #{index + 1}
+                                                </span>
+                                            </div>
+
+                                            <span
+                                                className="checkbox-tooltip-wrap"
+                                                style={{
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    position: "relative",
+                                                }}
+                                            >
+                                                {isPropLockedForUser(
+                                                    section.id,
+                                                    itemId,
+                                                ) && (
+                                                    <button
+                                                        type="button"
+                                                        aria-label="व्यक्तीचे नाव आधी लिहा"
+                                                        title="व्यक्तीचे नाव आधी लिहा"
+                                                        onClick={() =>
+                                                            window.alert(
+                                                                item.checked
+                                                                    ? "हा प्रॉप आधीच checked आहे. बदलण्यासाठी Admin शी संपर्क करा."
+                                                                    : "आधी कोणाकडे आहे त्याचे नाव लिहा मग box चेक करा",
+                                                            )
+                                                        }
+                                                        style={{
+                                                            position:
+                                                                "absolute",
+                                                            inset: 0,
+                                                            zIndex: 1,
+                                                            width: "100%",
+                                                            height: "100%",
+                                                            padding: 0,
+                                                            border: 0,
+                                                            background:
+                                                                "transparent",
+                                                            cursor: "not-allowed",
+                                                        }}
+                                                    />
+                                                )}
+                                                <input
+                                                    type="checkbox"
+                                                    checked={!!item.checked}
+                                                    disabled={isPropLockedForUser(
+                                                        section.id,
+                                                        itemId,
+                                                    )}
+                                                    onChange={(e) =>
+                                                        toggleChecked(
+                                                            section.id,
+                                                            itemId,
+                                                            e.target.checked,
+                                                        )
+                                                    }
+                                                    aria-label={item.name}
+                                                />
+                                            </span>
+
+                                            <span
+                                                className="item-name"
+                                                style={{ flex: "1 1 100px" }}
+                                            >
+                                                {item.name}
+                                            </span>
+
+                                            {isAdmin && (
+                                                <div
+                                                    style={{
+                                                        display: "inline-flex",
+                                                        gap: "4px",
+                                                        flex: "0 0 auto",
+                                                    }}
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        title="प्रॉप edit करा"
+                                                        aria-label="प्रॉप edit करा"
+                                                        onClick={() => {
+                                                            setSelectedAct(
+                                                                getAct(
+                                                                    section.id,
+                                                                ),
+                                                            );
+                                                            setSelectedSection(
+                                                                section.id,
+                                                            );
+                                                            setEditingPropId(
+                                                                itemId,
+                                                            );
+                                                            setEditingPropName(
+                                                                item.name || "",
+                                                            );
+                                                            setSearch("");
+                                                        }}
+                                                        style={adminIconStyle}
+                                                    >
+                                                        <Pencil size={16} />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        title="प्रॉप delete करा"
+                                                        aria-label="प्रॉप delete करा"
+                                                        onClick={() =>
+                                                            deleteProp(
+                                                                section,
+                                                                itemId,
+                                                                item,
+                                                            )
+                                                        }
+                                                        style={{
+                                                            ...adminIconStyle,
+                                                            color: "#dc2626",
+                                                        }}
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            <textarea
+                                                key={`search-${section.id}-${itemId}-${item.assignedTo || ""}`}
+                                                aria-label={`${item.name} कोणाकडे आहे`}
+                                                title="हा प्रॉप कोणाकडे आहे?"
+                                                rows={1}
+                                                defaultValue={
+                                                    item.assignedTo || ""
+                                                }
+                                                placeholder="कोणाकडे आहे?"
+                                                readOnly={
+                                                    !isAdmin &&
+                                                    !!item.checked &&
+                                                    !allowUsersEditAssignedNames
+                                                }
+                                                onBlur={(e) => {
+                                                    if (
+                                                        !isAdmin &&
+                                                        item.checked &&
+                                                        !allowUsersEditAssignedNames
+                                                    )
+                                                        return;
+                                                    updateAssignedTo(
+                                                        section.id,
+                                                        itemId,
+                                                        e.target.value.trim(),
+                                                    );
+                                                }}
+                                                style={{
+                                                    width: "min(220px, 45%)",
+                                                    background:
+                                                        !isAdmin &&
+                                                        item.checked &&
+                                                        !allowUsersEditAssignedNames
+                                                            ? "#f1f5f9"
+                                                            : "#fff",
+                                                    cursor:
+                                                        !isAdmin &&
+                                                        item.checked &&
+                                                        !allowUsersEditAssignedNames
+                                                            ? "not-allowed"
+                                                            : "text",
+                                                    minWidth: "120px",
+                                                    minHeight: "38px",
+                                                    marginLeft: "auto",
+                                                    padding: "8px 10px",
+                                                    border: "1px solid #d7deea",
+                                                    borderRadius: "9px",
+                                                    color: "#243047",
+                                                    font: "inherit",
+                                                    fontSize: "14px",
+                                                    resize: "vertical",
+                                                    boxSizing: "border-box",
+                                                }}
+                                            />
+                                        </div>
+                                    ),
+                                )}
+                            </div>
+                        )}
+                    </section>
                 ) : currentSection ? (
                     <section className="section-card">
                         <div className="section-heading">
@@ -2353,7 +2867,9 @@ export default function App() {
                                                     title="व्यक्तीचे नाव आधी लिहा"
                                                     onClick={() =>
                                                         window.alert(
-                                                            "आधी कोणाकडे आहे त्याचे नाव लिहा मग box चेक करा",
+                                                            item.checked
+                                                                ? "हा प्रॉप आधीच checked आहे. बदलण्यासाठी Admin शी संपर्क करा."
+                                                                : "आधी कोणाकडे आहे त्याचे नाव लिहा मग box चेक करा",
                                                         )
                                                     }
                                                     style={{
@@ -2542,17 +3058,38 @@ export default function App() {
                                             rows={1}
                                             defaultValue={item.assignedTo || ""}
                                             placeholder="कोणाकडे आहे?"
-                                            onBlur={(e) =>
+                                            readOnly={
+                                                !isAdmin &&
+                                                !!item.checked &&
+                                                !allowUsersEditAssignedNames
+                                            }
+                                            onBlur={(e) => {
+                                                if (
+                                                    !isAdmin &&
+                                                    item.checked &&
+                                                    !allowUsersEditAssignedNames
+                                                )
+                                                    return;
                                                 updateAssignedTo(
                                                     currentSection.id,
-
                                                     itemId,
-
                                                     e.target.value.trim(),
-                                                )
-                                            }
+                                                );
+                                            }}
                                             style={{
                                                 width: "min(220px, 32%)",
+                                                background:
+                                                    !isAdmin &&
+                                                    item.checked &&
+                                                    !allowUsersEditAssignedNames
+                                                        ? "#f1f5f9"
+                                                        : "#fff",
+                                                cursor:
+                                                    !isAdmin &&
+                                                    item.checked &&
+                                                    !allowUsersEditAssignedNames
+                                                        ? "not-allowed"
+                                                        : "text",
 
                                                 minWidth: "120px",
 
@@ -2881,7 +3418,7 @@ export default function App() {
                                     className="backup-button"
                                     onClick={exportTrashBackup}
                                 >
-                                    <Download size={15} /> Backup
+                                    <Download size={15} /> Trash Backup
                                 </button>
 
                                 <button
