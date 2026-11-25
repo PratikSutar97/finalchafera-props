@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 import html2pdf from "html2pdf.js";
-
+import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 
 import {
@@ -619,6 +619,7 @@ const ABUSIVE_WORDS = [
   "yeda",
   "yedya",
   "gadhav",
+  "yedjhavya",
   "faltu",
   "bhikari",
 ];
@@ -1332,495 +1333,471 @@ async function updateAssignedTo(sectionId, itemId, assignedTo, inputEl = null) {
     }
   }
 
-  async function downloadPdf(checkedMode, uniqueMode = false) {
-    if (!sections.length) {
-      setError(
-        "PDF तयार करण्यासाठी Firestore मधील props data load होणे आवश्यक आहे.",
-      );
+async function downloadPdf(checkedMode, uniqueMode = false, mode = null) {
+  const activeMode =
+    mode || (uniqueMode ? "unique" : "section");
 
-      return;
+  if (!sections.length) {
+    setError(
+      "PDF तयार करण्यासाठी Firestore मधील props data load होणे आवश्यक आहे.",
+    );
+    return;
+  }
+
+  setPdfBusy(true);
+  setPdfMenu(false);
+  setError("");
+
+  let source;
+
+  try {
+    const sortedSections = sortSections(sections);
+
+    source = document.createElement("div");
+    source.id = "pdf-capture-container";
+    source.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 794px;
+      background: #ffffff;
+      color: #111827;
+      padding: 16px 20px;
+      box-sizing: border-box;
+      font-family: "Nirmala UI", "Noto Sans Devanagari", Mangal, Arial, sans-serif;
+      z-index: 999999;
+    `;
+
+    const cellStyle = `
+      width: 33.33%;
+      vertical-align: top;
+      padding: 5px 6px;
+      border-bottom: 1px solid #d1d5db;
+      font-size: 11px;
+      line-height: 1.45;
+      color: #111827;
+      word-break: break-word;
+      box-sizing: border-box;
+    `;
+
+    function renderThreeColRows(entries, renderCellContent) {
+      let rowsHtml = "";
+      for (let i = 0; i < entries.length; i += 3) {
+        rowsHtml += `<tr class="pdf-row">`;
+        for (let col = 0; col < 3; col++) {
+          const entry = entries[i + col];
+          if (!entry) {
+            rowsHtml += `<td style="${cellStyle}border-bottom:none;"></td>`;
+          } else {
+            rowsHtml += `<td style="${cellStyle}">${renderCellContent(entry, i + col)}</td>`;
+          }
+        }
+        rowsHtml += `</tr>`;
+      }
+      return `
+        <table style="width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:10px;">
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      `;
     }
 
-    setPdfBusy(true);
-
-    setPdfMenu(false);
-
-    setError("");
-
-    let source;
-
-    try {
-      const sortedSections = sortSections(sections);
-
-      source = document.createElement("div");
-
-      source.className = "pdf-export-root";
-
-      source.style.cssText = `
-
-      position: fixed;
-
-      top: 0;
-
-      left: 0;
-
-      width: 794px;
-
-      padding: 24px;
-
-      box-sizing: border-box;
-
-      background: #ffffff;
-
-      color: #111827;
-
-      visibility: visible;
-
-      opacity: 1;
-
-      display: block;
-
-      min-height: 200px;
-
-      overflow: visible;
-
-      font-family: "Nirmala UI", "Noto Sans Devanagari", Mangal, Arial, sans-serif;
-
-      z-index: 2147483647;
-
-      pointer-events: none;
-
-    `;
-
-      let html = `
-
-      <div style="text-align:center;margin-bottom:20px;">
-
-        <h1 style="font-size:22px;margin:0 0 8px;">
-
+    const headerHtml = `
+      <div class="pdf-doc-header" style="text-align:center;margin-bottom:14px;">
+        <h1 style="font-size:20px;margin:0 0 6px;color:#111827;">
           फायनल चा फेरा — प्रॉप्स
-
         </h1>
-
       </div>
-
     `;
 
-      // OPTION 3: All props without duplicates.
+    const actBlocks = [];
 
-      // If the same prop is assigned to different people in different entries,
+    if (activeMode === "byPerson") {
+      const personMap = new Map();
 
-      // retain all distinct assignee names in the consolidated PDF.
+      for (const section of sortedSections) {
+        const actNum = getAct(section.id);
+        const praveshNum = getPravesh(section.id);
+        const placeLabel =
+          actNum && praveshNum
+            ? `अं${actNum}/प्र${praveshNum}`
+            : section.title || "";
 
-      if (uniqueMode) {
-        const uniqueProps = new Map();
+        const items = sortItems(
+          sectionData[section.id]?.items || section.items || {},
+        );
 
-        for (const section of sortedSections) {
-          const items = sortItems(
-            sectionData[section.id]?.items || section.items || {},
-          );
+        for (const [, item] of items) {
+          const propName = String(item?.name || "")
+            .replace(/\s+/g, " ")
+            .trim();
+          if (!propName) continue;
 
-          for (const [, item] of items) {
-            const name = String(item?.name || "")
-              .replace(/\s+/g, " ")
+          const rawAssigned = String(item?.assignedTo || "");
+          const entries = rawAssigned
+            .split(",")
+            .map((part) => part.replace(/\s+/g, " ").trim())
+            .filter(Boolean);
 
-              .trim();
+          for (const rawEntry of entries) {
+            const cleanPerson = extractCleanPersonName(rawEntry);
+            if (!cleanPerson) continue;
 
-            if (!name) continue;
-
-            const normalizedName = name.toLocaleLowerCase();
-
-            if (!uniqueProps.has(normalizedName)) {
-              uniqueProps.set(normalizedName, {
-                name,
-
-                assignedTo: new Set(),
+            const personKey = cleanPerson.toLocaleLowerCase();
+            if (!personMap.has(personKey)) {
+              personMap.set(personKey, {
+                person: cleanPerson,
+                props: new Map(),
               });
             }
 
-            const assignedTo = String(item?.assignedTo || "");
-            assignedTo.split(",").forEach((entry) => {
-              const cleanPerson = entry.replace(/\s+/g, " ").trim();
-              if (cleanPerson) {
-                uniqueProps.get(normalizedName).assignedTo.add(cleanPerson);
-              }
-            });
+            const personEntry = personMap.get(personKey);
+            const propKey = propName.toLocaleLowerCase();
 
-            if (assignedTo) {
-              uniqueProps.get(normalizedName).assignedTo.add(assignedTo);
+            if (!personEntry.props.has(propKey)) {
+              personEntry.props.set(propKey, {
+                name: propName,
+                locations: new Set(),
+                rawNotes: new Set(),
+              });
+            }
+
+            const propRecord = personEntry.props.get(propKey);
+            if (placeLabel) propRecord.locations.add(placeLabel);
+            if (rawEntry && rawEntry.toLocaleLowerCase() !== personKey) {
+              propRecord.rawNotes.add(rawEntry);
             }
           }
         }
+      }
 
-        html += `
+      const sortedPeople = [...personMap.values()].sort((a, b) =>
+        a.person.localeCompare(b.person, undefined, { sensitivity: "base" }),
+      );
 
-        <div style="
+      let personHtml = headerHtml;
 
-          display:grid;
+      if (!sortedPeople.length) {
+        personHtml += `
+          <p class="pdf-row" style="font-size:11px;color:#666;padding:8px 0;">
+            अजून कोणत्याही व्यक्तीला प्रॉप्स assign केलेले नाहीत.
+          </p>
+        `;
+      } else {
+        for (const group of sortedPeople) {
+          const propsList = [...group.props.values()];
 
-          grid-template-columns:repeat(3,minmax(0,1fr));
+          personHtml += `
+            <div class="pdf-row" style="
+              margin-top:12px;
+              margin-bottom:6px;
+              padding:6px 10px;
+              background:#e8eef7;
+              border:1px solid #cbd5e1;
+              display:flex;
+              justify-content:space-between;
+              align-items:center;
+            ">
+              <h2 style="font-size:15px;margin:0;color:#111827;">
+                ${escapeText(group.person)}
+              </h2>
+              <span style="font-size:11px;color:#475569;font-weight:600;">
+                ${propsList.length} props
+              </span>
+            </div>
+          `;
 
-          column-gap:12px;
+          personHtml += renderThreeColRows(propsList, (propObj, idx) => {
+            const locText = [...propObj.locations].join(", ");
+            return `
+              <span style="color:#555;margin-right:4px;">${idx + 1}.</span>
+              <span>${escapeText(propObj.name)}</span>
+              ${
+                locText
+                  ? `<span style="margin-left:6px;color:#64748b;font-size:10px;">(${escapeText(locText)})</span>`
+                  : ""
+              }
+            `;
+          });
+        }
+      }
 
-          width:100%;
+      actBlocks.push(`<div class="act-block">${personHtml}</div>`);
+    } else if (activeMode === "unique") {
+      const uniqueProps = new Map();
 
-          font-size:10px;
+      for (const section of sortedSections) {
+        const items = sortItems(
+          sectionData[section.id]?.items || section.items || {},
+        );
 
-        ">
+        for (const [, item] of items) {
+          const name = String(item?.name || "").replace(/\s+/g, " ").trim();
+          if (!name) continue;
 
-      `;
+          const normalizedName = name.toLocaleLowerCase();
+          if (!uniqueProps.has(normalizedName)) {
+            uniqueProps.set(normalizedName, {
+              name,
+              assignedTo: new Set(),
+            });
+          }
 
-        let index = 0;
+          const rawAssigned = String(item?.assignedTo || "");
+          rawAssigned.split(",").forEach((entry) => {
+            const cleanPerson = extractCleanPersonName(entry);
+            if (cleanPerson) {
+              uniqueProps.get(normalizedName).assignedTo.add(cleanPerson);
+            }
+          });
+        }
+      }
 
-        for (const prop of uniqueProps.values()) {
-          index++;
-
+      const uniqueBody = renderThreeColRows(
+        [...uniqueProps.values()],
+        (prop, idx) => {
           const people = [...prop.assignedTo].join(", ");
-
-          html += `
-
-          <div style="
-
-            display:flex;
-
-            align-items:flex-start;
-
-            gap:4px;
-
-            min-width:0;
-
-            padding:5px 2px;
-
-            border-bottom:1px solid #d1d5db;
-
-            overflow-wrap:anywhere;
-
-            break-inside:avoid;
-
-          ">
-
-            <span style="min-width:18px;color:#555;">
-
-              ${index}.
-
-            </span>
-
-            <span style="min-width:0;">
-
-              ${escapeText(prop.name)}
-
-            </span>
-
+          return `
+            <span style="color:#555;margin-right:4px;">${idx + 1}.</span>
+            <span>${escapeText(prop.name)}</span>
             ${
               people
-                ? `<span style="margin-left:12px;color:#555;white-space:normal;">${escapeText(people)}</span>`
+                ? `<span style="margin-left:6px;color:#555;">${escapeText(people)}</span>`
                 : ""
             }
-
-          </div>
-
-        `;
-        }
-
-        html += `</div>`;
-      } else {
-        // OPTION 1 and 2: Blank and checked checklists
-
-        let activeAct = null;
-
-        for (const section of sortedSections) {
-          const act = getAct(section.id);
-
-          if (act !== activeAct) {
-            const startsNewPage = activeAct !== null;
-            activeAct = act;
-
-            html += `
-
-            ${startsNewPage ? '<div class="html2pdf__page-break" style="display:block;width:100%;height:1px;min-height:1px;page-break-after:always;break-after:page;"></div>' : ""}
-
-            <div class="${startsNewPage ? "act-page-start" : ""}" style="
-
-              ${startsNewPage ? "page-break-before:always !important; break-before:page !important;" : ""}
-
-              margin-top:18px;
-
-              margin-bottom:10px;
-
-              padding:8px;
-
-              background:#e8eef7;
-
-              border:1px solid #cbd5e1;
-
-              break-after:avoid;
-
-            ">
-
-              <h2 style="font-size:18px;margin:0;">
-
-                अंक ${act}
-
-              </h2>
-
-            </div>
-
           `;
-          }
+        },
+      );
 
+      actBlocks.push(`${headerHtml}${uniqueBody}`);
+    } else {
+      const groupedByAct = new Map();
+
+      for (const section of sortedSections) {
+        const act = getAct(section.id);
+        if (!groupedByAct.has(act)) {
+          groupedByAct.set(act, []);
+        }
+        groupedByAct.get(act).push(section);
+      }
+
+      let isFirstAct = true;
+      for (const [act, actSectionsList] of groupedByAct.entries()) {
+        let blockHtml = isFirstAct ? headerHtml : "";
+        isFirstAct = false;
+
+        blockHtml += `
+          <div class="pdf-row" style="
+            margin-top:4px;
+            margin-bottom:8px;
+            padding:7px 10px;
+            background:#e8eef7;
+            border:1px solid #cbd5e1;
+          ">
+            <h2 style="font-size:16px;margin:0;color:#111827;">
+              अंक ${act}
+            </h2>
+          </div>
+        `;
+
+        for (const section of actSectionsList) {
           const sectionDisplayTitle =
             section.title || `प्रवेश ${getPravesh(section.id)}`;
-
           const sceneEntryName = String(
             sectionData[section.id]?.sceneEntryName || "",
           ).trim();
 
-          html += `
-
-          <h3 style="
-
-            font-size:13px;
-
-            margin:12px 0 6px;
-
-            padding-bottom:4px;
-
-            border-bottom:1px solid #333;
-
-            break-after:avoid;
-
-          ">
-
-            ${escapeText(sectionDisplayTitle)}
-
-            ${
-              sceneEntryName
-                ? `<span style="margin-left:12px;font-size:11px;font-weight:normal;color:#555;">${escapeText(sceneEntryName)}</span>`
-                : ""
-            }
-
-          </h3>
-
-        `;
+          blockHtml += `
+            <div class="pdf-row" style="
+              font-size:13px;
+              font-weight:700;
+              margin:10px 0 6px;
+              padding-bottom:4px;
+              border-bottom:1px solid #333;
+              color:#111827;
+            ">
+              ${escapeText(sectionDisplayTitle)}
+              ${
+                sceneEntryName
+                  ? `<span style="margin-left:10px;font-size:11px;font-weight:normal;color:#555;">${escapeText(sceneEntryName)}</span>`
+                  : ""
+              }
+            </div>
+          `;
 
           const items = sortItems(
             sectionData[section.id]?.items || section.items || {},
           );
 
           if (!items.length) {
-            html += `
-
-            <p style="font-size:10px;color:#666;padding:5px 0;">
-
-              या प्रवेशासाठी अजून प्रॉप्स नाहीत.
-
-            </p>
-
-          `;
-
+            blockHtml += `
+              <div class="pdf-row" style="font-size:11px;color:#666;padding:4px 0 8px;">
+                या प्रवेशासाठी अजून प्रॉप्स नाहीत.
+              </div>
+            `;
             continue;
           }
 
-          html += `
-
-          <div style="
-
-            display:grid;
-
-            grid-template-columns:repeat(3,minmax(0,1fr));
-
-            column-gap:10px;
-
-            width:100%;
-
-            margin-bottom:12px;
-
-            font-size:10px;
-
-          ">
-
-        `;
-
-          items.forEach(([, item], index) => {
+          blockHtml += renderThreeColRows(items, ([, item], idx) => {
             const isChecked = item?.checked === true;
-
-            html += `
-
-            <div style="
-
-              display:flex;
-
-              align-items:flex-start;
-
-              gap:4px;
-
-              min-width:0;
-
-              padding:5px 2px;
-
-              border-bottom:1px solid #d1d5db;
-
-              overflow-wrap:anywhere;
-
-              break-inside:avoid;
-
-            ">
-
-              <span style="min-width:16px;color:#555;">
-
-                ${index + 1}.
-
-              </span>
-
+            return `
+              <span style="color:#555;margin-right:4px;">${idx + 1}.</span>
               ${
                 checkedMode
-                  ? `<span style="min-width:13px;font-size:12px;">
-
-                      ${isChecked ? "☑" : "☐"}
-
-                    </span>`
+                  ? `<span style="font-size:12px;margin-right:4px;">${isChecked ? "☑" : "☐"}</span>`
                   : ""
               }
-
-              <span style="min-width:0;">
-
-                ${escapeText(item?.name || "")}
-
-              </span>
-
+              <span>${escapeText(item?.name || "")}</span>
               ${
                 item?.assignedTo
-                  ? `<span style="margin-left:14px;color:#555;min-width:0;white-space:normal;">${escapeText(item.assignedTo)}</span>`
+                  ? `<span style="margin-left:6px;color:#555;">${escapeText(item.assignedTo)}</span>`
                   : ""
               }
-
-            </div>
-
-          `;
+            `;
           });
-
-          html += `</div>`;
         }
+
+        actBlocks.push(`<div class="act-block">${blockHtml}</div>`);
       }
+    }
 
-      // Insert the generated HTML before attaching the element.
+    source.innerHTML = actBlocks.join("");
+    document.body.appendChild(source);
 
-      source.innerHTML = html;
+    await new Promise((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(resolve)),
+    );
+    if (document.fonts?.ready) {
+      await document.fonts.ready;
+    }
 
-      document.body.appendChild(source);
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
 
-      await new Promise((resolve) => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(resolve);
-        });
+    const pageWidthMm = pdf.internal.pageSize.getWidth();
+    const pageHeightMm = pdf.internal.pageSize.getHeight();
+    const marginMm = 6;
+    const printableWidthMm = pageWidthMm - marginMm * 2;
+    const printableHeightMm = pageHeightMm - marginMm * 2;
+
+    const blockEls = [...source.querySelectorAll(".act-block")];
+    const targetEls = blockEls.length ? blockEls : [source];
+
+    let hasAddedAnyPage = false;
+
+    for (const blockEl of targetEls) {
+      const canvas = await html2canvas(blockEl, {
+        scale: 2,
+        backgroundColor: "#ffffff",
+        useCORS: true,
+        logging: false,
       });
 
-      if (document.fonts?.ready) {
-        await document.fonts.ready;
-      }
+      if (!canvas || canvas.width === 0 || canvas.height === 0) continue;
 
-      if (!source.textContent?.trim()) {
-        throw new Error(
-          "PDF content रिकामे आहे. Props data load झाला आहे का ते तपासा.",
-        );
-      }
+      const blockRect = blockEl.getBoundingClientRect();
+      const scaleRatio = canvas.height / blockRect.height;
 
-      const options = {
-        margin: [6, 6, 6, 6],
+      const rowBottoms = [...blockEl.querySelectorAll(".pdf-row")]
+        .map((el) =>
+          Math.round(
+            (el.getBoundingClientRect().bottom - blockRect.top) * scaleRatio,
+          ),
+        )
+        .filter((y) => y > 0 && y <= canvas.height)
+        .sort((a, b) => a - b);
 
-        filename: uniqueMode ? "अकत्रित_Props.pdf" : "प्रवेश_परमाणे_props.pdf",
-
-        image: {
-          type: "jpeg",
-
-          quality: 0.98,
-        },
-
-        html2canvas: {
-          scale: 2,
-
-          backgroundColor: "#ffffff",
-
-          useCORS: true,
-
-          logging: true,
-
-          scrollX: 0,
-
-          scrollY: 0,
-
-          windowWidth: 1200,
-        },
-
-        jsPDF: {
-          unit: "mm",
-
-          format: "a4",
-
-          orientation: "portrait",
-
-          compress: true,
-        },
-
-        pagebreak: {
-          mode: ["css", "legacy"],
-
-          // The marker is placed between the previous act and the next act.
-          // Force a page break AFTER the marker (not before the heading).
-          after: [".html2pdf__page-break"],
-
-          before: [".act-page-start"],
-
-          avoid: ["h2", "h3"],
-        },
-      };
-
-      // Generate from the HTML element directly so html2pdf can honor
-      // page breaks between acts. Converting the whole document to one
-      // canvas first would remove the act-level page-break boundaries.
-      const pdf = await html2pdf().set(options).from(source).toPdf().get("pdf");
-
-      if (!pdf || pdf.getNumberOfPages() < 1) {
-        throw new Error("PDF तयार झाला नाही.");
-      }
-
-      const blob = pdf.output("blob");
-
-      if (!blob || blob.size < 1000) {
-        throw new Error("PDF रिकामा आहे. पुन्हा प्रयत्न करा.");
-      }
-
-      const url = URL.createObjectURL(blob);
-
-      const link = document.createElement("a");
-
-      link.href = url;
-
-      link.download = options.filename;
-
-      document.body.appendChild(link);
-
-      link.click();
-
-      link.remove();
-
-      window.setTimeout(() => URL.revokeObjectURL(url), 10000);
-
-      setToast(
-        uniqueMode
-          ? "All Props — Without Duplicates PDF डाउनलोड सुरू झाला."
-          : "Blank Checklist PDF डाउनलोड सुरू झाला.",
+      const maxSliceHeightPx = Math.floor(
+        (printableHeightMm * canvas.width) / printableWidthMm,
       );
-    } catch (e) {
-      console.error("PDF generation failed:", e);
 
-      setError(`PDF तयार करताना error आला: ${e?.message || "Unknown error"}`);
-    } finally {
-      source?.remove();
+      let sliceStartPx = 0;
 
-      setPdfBusy(false);
+      while (sliceStartPx < canvas.height) {
+        if (hasAddedAnyPage) {
+          pdf.addPage();
+        }
+        hasAddedAnyPage = true;
+
+        const idealEndPx = Math.min(
+          sliceStartPx + maxSliceHeightPx,
+          canvas.height,
+        );
+        let sliceEndPx = idealEndPx;
+
+        if (idealEndPx < canvas.height) {
+          const validBottoms = rowBottoms.filter(
+            (y) => y > sliceStartPx + 20 && y <= idealEndPx,
+          );
+          if (validBottoms.length) {
+            sliceEndPx = validBottoms[validBottoms.length - 1];
+          }
+        }
+
+        const currentSliceHeightPx = Math.max(1, sliceEndPx - sliceStartPx);
+
+        const sliceCanvas = document.createElement("canvas");
+        sliceCanvas.width = canvas.width;
+        sliceCanvas.height = currentSliceHeightPx;
+
+        const sliceCtx = sliceCanvas.getContext("2d");
+        sliceCtx.fillStyle = "#ffffff";
+        sliceCtx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+        sliceCtx.drawImage(
+          canvas,
+          0,
+          sliceStartPx,
+          canvas.width,
+          currentSliceHeightPx,
+          0,
+          0,
+          canvas.width,
+          currentSliceHeightPx,
+        );
+
+        const sliceImgData = sliceCanvas.toDataURL("image/jpeg", 0.95);
+        const sliceHeightMm =
+          (currentSliceHeightPx * printableWidthMm) / canvas.width;
+
+        pdf.addImage(
+          sliceImgData,
+          "JPEG",
+          marginMm,
+          marginMm,
+          printableWidthMm,
+          sliceHeightMm,
+        );
+
+        sliceStartPx = sliceEndPx;
+      }
     }
+
+    const filename =
+      activeMode === "byPerson"
+        ? "व्यक्तीनुसार_Props.pdf"
+        : activeMode === "unique"
+          ? "एकत्रित_Props.pdf"
+          : "प्रवेश_परमाणे_props.pdf";
+
+    pdf.save(filename);
+
+    setToast(
+      activeMode === "byPerson"
+        ? "व्यक्तीनुसार Props PDF डाउनलोड सुरू झाला."
+        : activeMode === "unique"
+          ? "एकत्रित Props PDF डाउनलोड सुरू झाला."
+          : "प्रवेश नुसार Props PDF डाउनलोड सुरू झाला.",
+    );
+  } catch (e) {
+    console.error("PDF generation failed:", e);
+    setError(`PDF तयार करताना error आला: ${e?.message || "Unknown error"}`);
+  } finally {
+    source?.remove();
+    setPdfBusy(false);
   }
+}
 
   function exportTrashBackup() {
     const backup = trash.map(({ id, ...item }) => ({
@@ -2269,6 +2246,9 @@ async function updateAssignedTo(sectionId, itemId, assignedTo, inputEl = null) {
                 <button onClick={() => downloadPdf(false, true)}>
                   २. अकत्रित Props
                 </button>
+                <button onClick={() => downloadPdf(false, false, "byPerson")}>
+      ३. व्यक्तीनुसार Props
+    </button>
               </div>
             )}
           </div>
@@ -2748,6 +2728,7 @@ async function updateAssignedTo(sectionId, itemId, assignedTo, inputEl = null) {
                 <span>/</span>
                 {currentItems.length} total
               </div>
+              
             </div>
 
             {/* <div className="progress-area">
@@ -2773,7 +2754,39 @@ async function updateAssignedTo(sectionId, itemId, assignedTo, inputEl = null) {
               </div>
 
             </div> */}
+            <div
+  className="props-list-header"
+  style={{
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "12px",
+    padding: "10px 16px",
+    borderTop: "1px solid #020202",
+    borderBottom: "1px solid #030303",
+    background: "#f8fafc",
+    color: "#475569",
+    fontSize: "12px",
+    fontWeight: 700,
+    letterSpacing: "0.02em",
+  }}
+>
+  <span style={{ flex: "1 1 auto", minWidth: 0 }}>
+    प्रॉपच नाव 
+  </span>
 
+  <span
+    style={{
+      width: "min(240px, 40%)",
+      minWidth: "120px",
+      marginLeft: "auto",
+      textAlign: "left",
+      boxSizing: "border-box",
+    }}
+  >
+    व्यक्तिचं नाव - प्रॉप count
+  </span>
+</div>
             <div className="items-list">
               {!filteredItems.length ? (
                 <div className="empty-state">
