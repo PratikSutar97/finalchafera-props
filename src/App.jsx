@@ -7,36 +7,36 @@ import html2pdf from "html2pdf.js";
 import html2canvas from "html2canvas";
 
 import {
-    collection,
-    doc,
-    onSnapshot,
-    runTransaction,
-    serverTimestamp,
-    setDoc,
-    deleteField,
+  collection,
+  doc,
+  onSnapshot,
+  runTransaction,
+  serverTimestamp,
+  setDoc,
+  deleteField,
 } from "firebase/firestore";
 
 import { db, firebaseConfigured } from "./firebase.js";
 
 import {
-    Search,
-    Download,
-    Trash2,
-    Plus,
-    ArrowUp,
-    X,
-    RotateCcw,
-    FileText,
-    CheckSquare,
-    Square,
-    LoaderCircle,
-    AlertTriangle,
-    Check,
-    Pencil,
-    LogIn,
-    LogOut,
-    Save,
-    Users,
+  Search,
+  Download,
+  Trash2,
+  Plus,
+  ArrowUp,
+  X,
+  RotateCcw,
+  FileText,
+  CheckSquare,
+  Square,
+  LoaderCircle,
+  AlertTriangle,
+  Check,
+  Pencil,
+  LogIn,
+  LogOut,
+  Save,
+  Users,
 } from "lucide-react";
 
 const META_REF = () => doc(db, "dramaPropsMeta", "main");
@@ -48,1266 +48,1315 @@ const META_REF = () => doc(db, "dramaPropsMeta", "main");
 const ADMIN_PIN = import.meta.env.VITE_ADMIN_PIN || "";
 
 const adminIconStyle = {
-    width: "32px",
+  width: "32px",
 
-    height: "32px",
+  height: "32px",
 
-    display: "inline-flex",
+  display: "inline-flex",
 
-    alignItems: "center",
+  alignItems: "center",
 
-    justifyContent: "center",
+  justifyContent: "center",
 
-    border: "1px solid #d7deea",
+  border: "1px solid #d7deea",
 
-    borderRadius: "8px",
+  borderRadius: "8px",
 
-    background: "#fff",
+  background: "#fff",
 
-    color: "#245be8",
+  color: "#245be8",
 
-    cursor: "pointer",
+  cursor: "pointer",
 
-    flex: "0 0 auto",
+  flex: "0 0 auto",
 };
 
 function sortSections(list) {
-    return [...list].sort((a, b) => {
-        const am = a.id.match(/act(\d+)_pravesh(\d+)/i);
+  return [...list].sort((a, b) => {
+    const am = a.id.match(/act(\d+)_pravesh(\d+)/i);
 
-        const bm = b.id.match(/act(\d+)_pravesh(\d+)/i);
+    const bm = b.id.match(/act(\d+)_pravesh(\d+)/i);
 
-        if (am && bm) {
-            return (
-                Number(am[1]) - Number(bm[1]) || Number(am[2]) - Number(bm[2])
-            );
-        }
+    if (am && bm) {
+      return Number(am[1]) - Number(bm[1]) || Number(am[2]) - Number(bm[2]);
+    }
 
-        return a.id.localeCompare(b.id);
-    });
+    return a.id.localeCompare(b.id);
+  });
 }
 
 function getAct(id) {
-    return Number(id.match(/act(\d+)_/)?.[1] || 0);
+  return Number(id.match(/act(\d+)_/)?.[1] || 0);
 }
 
 function getPravesh(id) {
-    return Number(id.match(/pravesh(\d+)/)?.[1] || 0);
+  return Number(id.match(/pravesh(\d+)/)?.[1] || 0);
 }
 
 function sortItems(items = {}) {
-    return Object.entries(items).sort(
-        (a, b) => Number(a[1]?.order || 0) - Number(b[1]?.order || 0),
-    );
+  return Object.entries(items).sort(
+    (a, b) => Number(a[1]?.order || 0) - Number(b[1]?.order || 0),
+  );
 }
 
 function formatDate(timestamp) {
-    if (!timestamp) return "अजून अपडेट नाही";
+  if (!timestamp) return "अजून अपडेट नाही";
 
-    const date = timestamp?.toDate ? timestamp.toDate() : new Date(timestamp);
+  const date = timestamp?.toDate ? timestamp.toDate() : new Date(timestamp);
 
-    if (Number.isNaN(date.getTime())) return "अजून अपडेट नाही";
+  if (Number.isNaN(date.getTime())) return "अजून अपडेट नाही";
 
-    return new Intl.DateTimeFormat("en-IN", {
-        day: "2-digit",
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
 
-        month: "2-digit",
+    month: "2-digit",
 
-        year: "numeric",
+    year: "numeric",
 
-        hour: "2-digit",
+    hour: "2-digit",
 
-        minute: "2-digit",
+    minute: "2-digit",
 
-        hour12: true,
-    }).format(date);
+    hour12: true,
+  }).format(date);
 }
 
 function getDeviceName() {
-    const ua = navigator.userAgent || "";
+  const ua = navigator.userAgent || "";
 
-    const platform =
-        navigator.userAgentData?.platform || navigator.platform || "";
+  const platform =
+    navigator.userAgentData?.platform || navigator.platform || "";
 
-    // Apple devices
+  // Apple devices
 
-    if (/iPhone/i.test(ua)) return "Apple iPhone";
+  if (/iPhone/i.test(ua)) return "Apple iPhone";
 
-    if (/iPad/i.test(ua)) return "Apple iPad";
+  if (/iPad/i.test(ua)) return "Apple iPad";
 
-    if (/Macintosh|Mac OS X/i.test(ua) || /Mac/i.test(platform)) {
-        return "Apple Mac";
-    }
+  if (/Macintosh|Mac OS X/i.test(ua) || /Mac/i.test(platform)) {
+    return "Apple Mac";
+  }
 
-    // Android manufacturers
+  // Android manufacturers
 
-    if (/Samsung|SM-[A-Z0-9]+/i.test(ua)) return "Samsung Device";
+  if (/Samsung|SM-[A-Z0-9]+/i.test(ua)) return "Samsung Device";
 
-    if (/Redmi|POCO|Xiaomi|Miui/i.test(ua)) return "Xiaomi / Redmi Device";
+  if (/Redmi|POCO|Xiaomi|Miui/i.test(ua)) return "Xiaomi / Redmi Device";
 
-    if (/vivo/i.test(ua)) return "Vivo Device";
+  if (/vivo/i.test(ua)) return "Vivo Device";
 
-    if (/OPPO|CPH[0-9]+/i.test(ua)) return "Oppo Device";
+  if (/OPPO|CPH[0-9]+/i.test(ua)) return "Oppo Device";
 
-    if (/OnePlus/i.test(ua)) return "OnePlus Device";
+  if (/OnePlus/i.test(ua)) return "OnePlus Device";
 
-    if (/Pixel/i.test(ua)) return "Google Pixel";
+  if (/Pixel/i.test(ua)) return "Google Pixel";
 
-    if (/Realme/i.test(ua)) return "Realme Device";
+  if (/Realme/i.test(ua)) return "Realme Device";
 
-    if (/Huawei/i.test(ua)) return "Huawei Device";
+  if (/Huawei/i.test(ua)) return "Huawei Device";
 
-    if (/Motorola|Moto/i.test(ua)) return "Motorola Device";
+  if (/Motorola|Moto/i.test(ua)) return "Motorola Device";
 
-    if (/Infinix/i.test(ua)) return "Infinix Device";
+  if (/Infinix/i.test(ua)) return "Infinix Device";
 
-    if (/Tecno/i.test(ua)) return "Tecno Device";
+  if (/Tecno/i.test(ua)) return "Tecno Device";
 
-    if (/Android/i.test(ua)) return "Android Device";
+  if (/Android/i.test(ua)) return "Android Device";
 
-    // Computer operating systems
+  // Computer operating systems
 
-    if (/Windows/i.test(ua) || /Windows/i.test(platform)) {
-        return "Windows PC / Laptop";
-    }
+  if (/Windows/i.test(ua) || /Windows/i.test(platform)) {
+    return "Windows PC / Laptop";
+  }
 
-    if (/Linux/i.test(ua) || /Linux/i.test(platform)) {
-        return "Linux Computer";
-    }
+  if (/Linux/i.test(ua) || /Linux/i.test(platform)) {
+    return "Linux Computer";
+  }
 
-    return "Unknown Device";
+  return "Unknown Device";
 }
 
 function escapeText(value) {
-    return String(value ?? "").replace(
-        /[&<>"']/g,
+  return String(value ?? "").replace(
+    /[&<>"']/g,
 
-        (char) =>
-            ({
-                "&": "&amp;",
+    (char) =>
+      ({
+        "&": "&amp;",
 
-                "<": "&lt;",
+        "<": "&lt;",
 
-                ">": "&gt;",
+        ">": "&gt;",
 
-                '"': "&quot;",
+        '"': "&quot;",
 
-                "'": "&#039;",
-            })[char],
-    );
+        "'": "&#039;",
+      })[char],
+  );
 }
 
 export default function App() {
-    const [sections, setSections] = useState([]);
+  const [sections, setSections] = useState([]);
 
-    const [sectionData, setSectionData] = useState({});
+  const [sectionData, setSectionData] = useState({});
 
-    const [trash, setTrash] = useState([]);
+  const [trash, setTrash] = useState([]);
 
-    const [lastUpdated, setLastUpdated] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
 
-    const [lastUpdatedDevice, setLastUpdatedDevice] = useState("");
+  const [lastUpdatedDevice, setLastUpdatedDevice] = useState("");
 
-    // Admin-controlled permission: allow normal users to edit assigned names even after a prop is checked.
-    const [allowUsersEditAssignedNames, setAllowUsersEditAssignedNames] =
-        useState(false);
+  // Admin-controlled permission: allow normal users to edit assigned names even after a prop is checked.
+  const [allowUsersEditAssignedNames, setAllowUsersEditAssignedNames] =
+    useState(false);
 
-    const [selectedAct, setSelectedAct] = useState(1);
+  const [selectedAct, setSelectedAct] = useState(1);
 
-    const [selectedSection, setSelectedSection] = useState("");
+  const [selectedSection, setSelectedSection] = useState("");
 
-    const [search, setSearch] = useState("");
+  const [search, setSearch] = useState("");
 
-    const [selectedPerson, setSelectedPerson] = useState("");
+  const [selectedPerson, setSelectedPerson] = useState("");
 
-    const [pdfMenu, setPdfMenu] = useState(false);
+  const [pdfMenu, setPdfMenu] = useState(false);
 
-    const [trashOpen, setTrashOpen] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
 
-    const [error, setError] = useState("");
+  const [error, setError] = useState("");
 
-    const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
-    const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
-    const [toast, setToast] = useState("");
+  const [toast, setToast] = useState("");
 
-    const [sceneEntryNameDraft, setSceneEntryNameDraft] = useState("");
+  const [sceneEntryNameDraft, setSceneEntryNameDraft] = useState("");
 
-    const [sceneEntryNameEditing, setSceneEntryNameEditing] = useState(false);
+  const [sceneEntryNameEditing, setSceneEntryNameEditing] = useState(false);
 
-    const [sceneEntryNameSaving, setSceneEntryNameSaving] = useState(false);
+  const [sceneEntryNameSaving, setSceneEntryNameSaving] = useState(false);
 
-    // Keep Admin Mode active across page refreshes in this browser.
-    const [isAdmin, setIsAdmin] = useState(() => {
-        try {
-            return (
-                window.localStorage.getItem("dramaPropsAdminLoggedIn") ===
-                "true"
-            );
-        } catch {
-            return false;
+  // Keep Admin Mode active across page refreshes in this browser.
+  const [isAdmin, setIsAdmin] = useState(() => {
+    try {
+      return window.localStorage.getItem("dramaPropsAdminLoggedIn") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const [loginOpen, setLoginOpen] = useState(false);
+
+  const [adminPin, setAdminPin] = useState("");
+
+  const [loginError, setLoginError] = useState("");
+
+  const [editingPropId, setEditingPropId] = useState("");
+
+  const [editingPropName, setEditingPropName] = useState("");
+  const [activeVisitors, setActiveVisitors] = useState([]);
+  const [visitorClock, setVisitorClock] = useState(Date.now());
+
+  // Track one browser session without asking visitors to register or log in.
+  useEffect(() => {
+    if (!firebaseConfigured) return undefined;
+
+    let visitorId = localStorage.getItem("dramaPropsVisitorId");
+    if (!visitorId) {
+      visitorId = window.crypto?.randomUUID
+        ? window.crypto.randomUUID()
+        : `visitor_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem("dramaPropsVisitorId", visitorId);
+    }
+
+    const visitorRef = doc(db, "activeVisitors", visitorId);
+    const heartbeat = async () => {
+      try {
+        await setDoc(
+          visitorRef,
+          {
+            visitorId,
+            device: getDeviceName(),
+            lastSeenAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
+      } catch (e) {
+        console.error("Visitor heartbeat failed:", e);
+      }
+    };
+
+    heartbeat();
+    const heartbeatInterval = window.setInterval(heartbeat, 30000);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") heartbeat();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.clearInterval(heartbeatInterval);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, []);
+
+  // Only the admin browser subscribes to the visitor collection.
+  useEffect(() => {
+    if (!isAdmin || !firebaseConfigured) {
+      setActiveVisitors([]);
+      return undefined;
+    }
+    const unsubscribe = onSnapshot(
+      collection(db, "activeVisitors"),
+      (snapshot) => setActiveVisitors(snapshot.docs.map((item) => item.data())),
+      (e) => setError(`Live Visitors load error: ${e.message}`),
+    );
+    return unsubscribe;
+  }, [isAdmin]);
+
+  // Expire stale sessions even when Firestore sends no new snapshot.
+  useEffect(() => {
+    if (!isAdmin) return undefined;
+    const timer = window.setInterval(() => setVisitorClock(Date.now()), 15000);
+    return () => window.clearInterval(timer);
+  }, [isAdmin]);
+
+  const liveVisitorCount = useMemo(
+    () =>
+      activeVisitors.filter((visitor) => {
+        const lastSeen = visitor.lastSeenAt?.toMillis?.() || 0;
+        return lastSeen > 0 && visitorClock - lastSeen <= 90000;
+      }).length,
+    [activeVisitors, visitorClock],
+  );
+
+  useEffect(() => {
+    if (!firebaseConfigured) {
+      setLoading(false);
+
+      setError(
+        "Firebase config सापडला नाही. .env.example ची .env.local प्रत तयार करून Firebase values भरा.",
+      );
+
+      return undefined;
+    }
+
+    const unsubSections = onSnapshot(
+      collection(db, "dramaProps"),
+
+      (snapshot) => {
+        const next = [];
+
+        const dataMap = {};
+
+        snapshot.forEach((snap) => {
+          const data = snap.data();
+
+          const section = {
+            id: snap.id,
+
+            title: data.title || snap.id,
+
+            items: data.items || {},
+          };
+
+          next.push(section);
+
+          dataMap[snap.id] = data;
+        });
+
+        const sorted = sortSections(next);
+
+        setSections(sorted);
+
+        setSectionData(dataMap);
+
+        setLoading(false);
+
+        setError("");
+
+        setSelectedAct((current) => {
+          const acts = [
+            ...new Set(sorted.map((s) => getAct(s.id)).filter(Boolean)),
+          ];
+
+          return acts.includes(current) ? current : acts[0] || 1;
+        });
+
+        setSelectedSection((current) =>
+          sorted.some((s) => s.id === current) ? current : sorted[0]?.id || "",
+        );
+      },
+
+      (e) => {
+        setLoading(false);
+
+        setError(`Firestore sections read error: ${e.message}`);
+      },
+    );
+
+    const unsubMeta = onSnapshot(
+      META_REF(),
+
+      (snap) => {
+        if (snap.exists()) {
+          const meta = snap.data();
+
+          setLastUpdated(meta.lastUpdatedAt || null);
+
+          setLastUpdatedDevice(meta.lastUpdatedDevice || "");
+          setAllowUsersEditAssignedNames(
+            meta.allowUsersEditAssignedNames === true,
+          );
+        } else {
+          setLastUpdated(null);
+
+          setLastUpdatedDevice("");
+          setAllowUsersEditAssignedNames(false);
         }
+      },
+
+      (e) => setError(`Last updated वाचताना error: ${e.message}`),
+    );
+
+    const unsubTrash = onSnapshot(
+      collection(db, "dramaPropsTrash"),
+
+      (snapshot) => {
+        setTrash(
+          snapshot.docs
+
+            .map((d) => ({ id: d.id, ...d.data() }))
+
+            .sort((a, b) => {
+              const ad = a.deletedAt?.toMillis?.() || 0;
+
+              const bd = b.deletedAt?.toMillis?.() || 0;
+
+              return bd - ad;
+            }),
+        );
+      },
+
+      (e) => setError(`Trash data वाचताना error: ${e.message}`),
+    );
+
+    return () => {
+      unsubSections();
+
+      unsubMeta();
+
+      unsubTrash();
+    };
+  }, []);
+
+  const acts = useMemo(
+    () =>
+      [...new Set(sections.map((s) => getAct(s.id)).filter(Boolean))].sort(
+        (a, b) => a - b,
+      ),
+
+    [sections],
+  );
+
+  const actSections = useMemo(
+    () => sections.filter((s) => getAct(s.id) === selectedAct),
+
+    [sections, selectedAct],
+  );
+
+const currentSection =
+  sections.find((s) => s.id === selectedSection) || actSections[0];
+
+  const currentItems = useMemo(
+    () =>
+      sortItems(
+        sectionData[currentSection?.id]?.items || currentSection?.items || {},
+      ),
+
+    [sectionData, currentSection],
+  );
+
+  function extractCleanPersonName(rawEntry) {
+    return String(rawEntry ?? "")
+      .replace(/\s*[\(\[\{]\s*\d+\s*[\)\]\}]\s*$/g, "") // strips trailing (1), [1], {1}
+      .replace(/\s*[-–—]\s*\d+\s*$/g, "") // strips trailing - 1, -1, – 1, — 1
+      .replace(/\s+\d+\s*$/g, "") // strips trailing standalone numbers like "Pratik 1"
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+  // Build a unique list of assigned people for the person dropdown.
+  // Build a unique list of assigned people for the person dropdown.
+  // Build a unique list of clean assigned people names for the person dropdown.
+  const assignedPeople = useMemo(() => {
+    const peopleByKey = new Map();
+
+    sections.forEach((section) => {
+      const items = sectionData[section.id]?.items || section.items || {};
+      Object.values(items).forEach((item) => {
+        const rawAssigned = String(item?.assignedTo || "");
+        rawAssigned.split(",").forEach((entry) => {
+          const person = extractCleanPersonName(entry);
+          if (!person) return;
+          const key = person.toLocaleLowerCase();
+          if (!peopleByKey.has(key)) {
+            peopleByKey.set(key, person);
+          }
+        });
+      });
     });
 
-    const [loginOpen, setLoginOpen] = useState(false);
+    return [...peopleByKey.values()].sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: "base" }),
+    );
+  }, [sections, sectionData]);
 
-    const [adminPin, setAdminPin] = useState("");
+  // The text box searches prop names only. The dropdown filters by assigned person.
+  // When both are selected, both filters apply to the results.
+  // The text box searches prop names only. The dropdown filters by assigned person.
+  // When both are selected, both filters apply to the results.
+  // The text box searches prop names only. The dropdown filters by assigned person.
+  // When both are selected, both filters apply to the results.
+const globalSearchResults = useMemo(() => {
+  const needle = search.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+  const personNeedle = selectedPerson.trim().toLocaleLowerCase();
+  if (!needle && !personNeedle) return [];
 
-    const [loginError, setLoginError] = useState("");
-
-    const [editingPropId, setEditingPropId] = useState("");
-
-    const [editingPropName, setEditingPropName] = useState("");
-    const [activeVisitors, setActiveVisitors] = useState([]);
-    const [visitorClock, setVisitorClock] = useState(Date.now());
-
-    // Track one browser session without asking visitors to register or log in.
-    useEffect(() => {
-        if (!firebaseConfigured) return undefined;
-
-        let visitorId = localStorage.getItem("dramaPropsVisitorId");
-        if (!visitorId) {
-            visitorId = window.crypto?.randomUUID
-                ? window.crypto.randomUUID()
-                : `visitor_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-            localStorage.setItem("dramaPropsVisitorId", visitorId);
-        }
-
-        const visitorRef = doc(db, "activeVisitors", visitorId);
-        const heartbeat = async () => {
-            try {
-                await setDoc(
-                    visitorRef,
-                    {
-                        visitorId,
-                        device: getDeviceName(),
-                        lastSeenAt: serverTimestamp(),
-                    },
-                    { merge: true },
-                );
-            } catch (e) {
-                console.error("Visitor heartbeat failed:", e);
-            }
-        };
-
-        heartbeat();
-        const heartbeatInterval = window.setInterval(heartbeat, 30000);
-        const handleVisibility = () => {
-            if (document.visibilityState === "visible") heartbeat();
-        };
-        document.addEventListener("visibilitychange", handleVisibility);
-
-        return () => {
-            window.clearInterval(heartbeatInterval);
-            document.removeEventListener("visibilitychange", handleVisibility);
-        };
-    }, []);
-
-    // Only the admin browser subscribes to the visitor collection.
-    useEffect(() => {
-        if (!isAdmin || !firebaseConfigured) {
-            setActiveVisitors([]);
-            return undefined;
-        }
-        const unsubscribe = onSnapshot(
-            collection(db, "activeVisitors"),
-            (snapshot) =>
-                setActiveVisitors(snapshot.docs.map((item) => item.data())),
-            (e) => setError(`Live Visitors load error: ${e.message}`),
-        );
-        return unsubscribe;
-    }, [isAdmin]);
-
-    // Expire stale sessions even when Firestore sends no new snapshot.
-    useEffect(() => {
-        if (!isAdmin) return undefined;
-        const timer = window.setInterval(
-            () => setVisitorClock(Date.now()),
-            15000,
-        );
-        return () => window.clearInterval(timer);
-    }, [isAdmin]);
-
-    const liveVisitorCount = useMemo(
-        () =>
-            activeVisitors.filter((visitor) => {
-                const lastSeen = visitor.lastSeenAt?.toMillis?.() || 0;
-                return lastSeen > 0 && visitorClock - lastSeen <= 90000;
-            }).length,
-        [activeVisitors, visitorClock],
+  return sections.flatMap((section) => {
+    const items = sortItems(
+      sectionData[section.id]?.items || section.items || {},
     );
 
-    useEffect(() => {
-        if (!firebaseConfigured) {
-            setLoading(false);
-
-            setError(
-                "Firebase config सापडला नाही. .env.example ची .env.local प्रत तयार करून Firebase values भरा.",
-            );
-
-            return undefined;
-        }
-
-        const unsubSections = onSnapshot(
-            collection(db, "dramaProps"),
-
-            (snapshot) => {
-                const next = [];
-
-                const dataMap = {};
-
-                snapshot.forEach((snap) => {
-                    const data = snap.data();
-
-                    const section = {
-                        id: snap.id,
-
-                        title: data.title || snap.id,
-
-                        items: data.items || {},
-                    };
-
-                    next.push(section);
-
-                    dataMap[snap.id] = data;
-                });
-
-                const sorted = sortSections(next);
-
-                setSections(sorted);
-
-                setSectionData(dataMap);
-
-                setLoading(false);
-
-                setError("");
-
-                setSelectedAct((current) => {
-                    const acts = [
-                        ...new Set(
-                            sorted.map((s) => getAct(s.id)).filter(Boolean),
-                        ),
-                    ];
-
-                    return acts.includes(current) ? current : acts[0] || 1;
-                });
-
-                setSelectedSection((current) =>
-                    sorted.some((s) => s.id === current)
-                        ? current
-                        : sorted[0]?.id || "",
-                );
-            },
-
-            (e) => {
-                setLoading(false);
-
-                setError(`Firestore sections read error: ${e.message}`);
-            },
-        );
-
-        const unsubMeta = onSnapshot(
-            META_REF(),
-
-            (snap) => {
-                if (snap.exists()) {
-                    const meta = snap.data();
-
-                    setLastUpdated(meta.lastUpdatedAt || null);
-
-                    setLastUpdatedDevice(meta.lastUpdatedDevice || "");
-                    setAllowUsersEditAssignedNames(
-                        meta.allowUsersEditAssignedNames === true,
-                    );
-                } else {
-                    setLastUpdated(null);
-
-                    setLastUpdatedDevice("");
-                    setAllowUsersEditAssignedNames(false);
-                }
-            },
-
-            (e) => setError(`Last updated वाचताना error: ${e.message}`),
-        );
-
-        const unsubTrash = onSnapshot(
-            collection(db, "dramaPropsTrash"),
-
-            (snapshot) => {
-                setTrash(
-                    snapshot.docs
-
-                        .map((d) => ({ id: d.id, ...d.data() }))
-
-                        .sort((a, b) => {
-                            const ad = a.deletedAt?.toMillis?.() || 0;
-
-                            const bd = b.deletedAt?.toMillis?.() || 0;
-
-                            return bd - ad;
-                        }),
-                );
-            },
-
-            (e) => setError(`Trash data वाचताना error: ${e.message}`),
-        );
-
-        return () => {
-            unsubSections();
-
-            unsubMeta();
-
-            unsubTrash();
-        };
-    }, []);
-
-    const acts = useMemo(
-        () =>
-            [
-                ...new Set(sections.map((s) => getAct(s.id)).filter(Boolean)),
-            ].sort((a, b) => a - b),
-
-        [sections],
-    );
-
-    const actSections = useMemo(
-        () => sections.filter((s) => getAct(s.id) === selectedAct),
-
-        [sections, selectedAct],
-    );
-
-    const currentSection =
-        sections.find((s) => s.id === selectedSection) || actSections[0];
-
-    const currentItems = useMemo(
-        () =>
-            sortItems(
-                sectionData[currentSection?.id]?.items ||
-                    currentSection?.items ||
-                    {},
-            ),
-
-        [sectionData, currentSection],
-    );
-
-    // Build a unique list of assigned people for the person dropdown.
-    const assignedPeople = useMemo(() => {
-        const peopleByKey = new Map();
-
-        sections.forEach((section) => {
-            const items = sectionData[section.id]?.items || section.items || {};
-            Object.values(items).forEach((item) => {
-                const person = String(item?.assignedTo || "").trim();
-                if (!person) return;
-                const key = person.replace(/\s+/g, " ").toLocaleLowerCase();
-                if (!peopleByKey.has(key))
-                    peopleByKey.set(key, person.replace(/\s+/g, " "));
-            });
-        });
-
-        return [...peopleByKey.values()].sort((a, b) =>
-            a.localeCompare(b, undefined, { sensitivity: "base" }),
-        );
-    }, [sections, sectionData]);
-
-    // The text box searches prop names only. The dropdown filters by assigned person.
-    // When both are selected, both filters apply to the results.
-    const globalSearchResults = useMemo(() => {
-        const needle = search.trim().replace(/\s+/g, " ").toLocaleLowerCase();
-        const personNeedle = selectedPerson.trim().toLocaleLowerCase();
-        if (!needle && !personNeedle) return [];
-
-        return sections.flatMap((section) => {
-            const items = sortItems(
-                sectionData[section.id]?.items || section.items || {},
-            );
-
-            return items
-                .filter(([, item]) => {
-                    const propName = String(item?.name || "")
-                        .replace(/\s+/g, " ")
-                        .trim()
-                        .toLocaleLowerCase();
-                    const assignedPerson = String(item?.assignedTo || "")
-                        .replace(/\s+/g, " ")
-                        .trim()
-                        .toLocaleLowerCase();
-
-                    return (
-                        (!needle || propName.includes(needle)) &&
-                        (!personNeedle || assignedPerson === personNeedle)
-                    );
-                })
-                .map(([itemId, item]) => ({ section, itemId, item }));
-        });
-    }, [search, selectedPerson, sections, sectionData]);
-
-    const filteredItems = currentItems;
-
-    const checkedCount = currentItems.filter(
-        ([, item]) => item?.checked,
-    ).length;
-
-    const progress = currentItems.length
-        ? Math.round((checkedCount / currentItems.length) * 100)
-        : 0;
-
-    const savedSceneEntryName = String(
-        sectionData[currentSection?.id]?.sceneEntryName || "",
-    ).trim();
-
-    useEffect(() => {
-        setSceneEntryNameDraft(savedSceneEntryName);
-
-        setSceneEntryNameEditing(!savedSceneEntryName);
-    }, [currentSection?.id, savedSceneEntryName]);
-
-    function getRegisteredDeviceName() {
-        return getDeviceName();
-    }
-
-    async function updateMeta(transaction = null) {
-        const metaData = {
-            lastUpdatedAt: serverTimestamp(),
-
-            lastUpdatedDevice: getRegisteredDeviceName(),
-        };
-
-        if (transaction) {
-            transaction.set(META_REF(), metaData, { merge: true });
-        } else {
-            await setDoc(META_REF(), metaData, { merge: true });
-        }
-    }
-
-    async function setUserNameEditingPermission(enabled) {
-        if (!isAdmin) return;
-        try {
-            await setDoc(
-                META_REF(),
-                {
-                    allowUsersEditAssignedNames: enabled,
-                    lastUpdatedAt: serverTimestamp(),
-                },
-                { merge: true },
-            );
-            setToast(
-                enabled
-                    ? "Normal users आता checked प्रॉपचे नावही edit करू शकतात."
-                    : "Normal users साठी checked प्रॉपचे नाव edit करणे बंद केले.",
-            );
-        } catch (e) {
-            console.error("Could not update user name-edit permission:", e);
-            setError(`Permission update झाले नाही: ${e.message}`);
-        }
-    }
-
-    function isPropLockedForUser(sectionId, itemId) {
-        const sourceSection = sections.find(
-            (section) => section.id === sectionId,
-        );
-        const sourceItems =
-            sectionData[sectionId]?.items || sourceSection?.items || {};
-        const sourceItem = sourceItems[itemId];
-        if (!sourceItem?.name) return true;
-
-        const targetName = sourceItem.name.trim().toLocaleLowerCase();
-        const matchingItems = sections.flatMap((section) => {
-            const items = sectionData[section.id]?.items || section.items || {};
-            return Object.values(items).filter(
-                (item) => item?.name?.trim().toLocaleLowerCase() === targetName,
-            );
-        });
-
-        const hasAssignee = matchingItems.some(
-            (item) => String(item.assignedTo || "").trim() !== "",
-        );
-        const isAlreadyChecked = matchingItems.some(
-            (item) => item?.checked === true,
-        );
+    return items
+      .filter(([, item]) => {
+        const propName = String(item?.name || "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .toLocaleLowerCase();
+
+        const assignedPeopleList = String(item?.assignedTo || "")
+          .split(",")
+          .map((name) => extractCleanPersonName(name).toLocaleLowerCase())
+          .filter(Boolean);
 
         return (
-            !hasAssignee ||
-            (!isAdmin && isAlreadyChecked && !allowUsersEditAssignedNames)
+          (!needle || propName.includes(needle)) &&
+          (!personNeedle || assignedPeopleList.includes(personNeedle))
         );
+      })
+      .map(([itemId, item]) => ({ section, itemId, item }));
+  });
+}, [search, selectedPerson, sections, sectionData]);
+
+  const filteredItems = currentItems;
+
+  const checkedCount = currentItems.filter(([, item]) => item?.checked).length;
+
+  const progress = currentItems.length
+    ? Math.round((checkedCount / currentItems.length) * 100)
+    : 0;
+
+  const savedSceneEntryName = String(
+    sectionData[currentSection?.id]?.sceneEntryName || "",
+  ).trim();
+
+  useEffect(() => {
+    setSceneEntryNameDraft(savedSceneEntryName);
+
+    setSceneEntryNameEditing(!savedSceneEntryName);
+  }, [currentSection?.id, savedSceneEntryName]);
+
+  function getRegisteredDeviceName() {
+    return getDeviceName();
+  }
+const ABUSIVE_WORDS = [
+  // English
+  "fuck",
+  "shit",
+  "bitch",
+  "asshole",
+  "bastard",
+  "dick",
+  "pussy",
+  "slut",
+  "whore",
+  "idiot",
+  "moron",
+  // Hindi (Devanagari & Hinglish)
+  "चूतिया",
+  "चुत्या",
+  "चुतिया",
+  "लवड्या",
+  "भोसडी",
+  "भोसड़ी",
+  "मादरचोद",
+  "बहनचोद",
+  "बहनchod",
+  "हरामी",
+  "कमीना",
+  "गांडू",
+  "रंडी",
+  "chutiya",
+  "chutya",
+  "bhosdike",
+  "lavdya",
+  "bhosdi",
+  "madarchod",
+  "behenchod",
+  "bhenchod",
+  "harami",
+  "kamina",
+  "gandu",
+  "randi",
+  // Marathi (Devanagari & Romanized)
+  "येडा",
+  "येड्या",
+  "गाढव",
+  "लांड्या",
+  "भिकारी",
+  "फालतू",
+  "बदमाश",
+  "लाचार",
+  "yeda",
+  "yedya",
+  "gadhav",
+  "faltu",
+  "bhikari",
+];
+
+function containsAbusiveWord(value) {
+  const text = String(value ?? "").toLocaleLowerCase();
+  if (!text.trim()) return false;
+
+  // Split by non-letter characters (supports Latin, Devanagari, etc.)
+  const tokens = text
+    .split(/[^\p{L}\p{N}_]+/u)
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+  return ABUSIVE_WORDS.some((word) => {
+    const cleanWord = word.toLocaleLowerCase();
+    // Match exact token or substring for multi-part slang
+    return (
+      tokens.includes(cleanWord) ||
+      (cleanWord.length >= 4 && text.includes(cleanWord))
+    );
+  });
+}
+async function updateMeta(transaction = null) {
+  if (isAdmin) return;
+
+  const metaData = {
+    lastUpdatedAt: serverTimestamp(),
+    lastUpdatedDevice: getRegisteredDeviceName(),
+  };
+
+  if (transaction) {
+    transaction.set(META_REF(), metaData, { merge: true });
+  } else {
+    await setDoc(META_REF(), metaData, { merge: true });
+  }
+}
+
+  async function setUserNameEditingPermission(enabled) {
+    if (!isAdmin) return;
+    try {
+      await setDoc(
+        META_REF(),
+        {
+          allowUsersEditAssignedNames: enabled,
+          lastUpdatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+      setToast(
+        enabled
+          ? "Normal users आता checked प्रॉपचे नावही edit करू शकतात."
+          : "Normal users साठी checked प्रॉपचे नाव edit करणे बंद केले.",
+      );
+    } catch (e) {
+      console.error("Could not update user name-edit permission:", e);
+      setError(`Permission update झाले नाही: ${e.message}`);
     }
+  }
 
-    async function toggleChecked(sectionId, itemId, checked) {
-        setError("");
+  function isPropLockedForUser(sectionId, itemId) {
+    const sourceSection = sections.find((section) => section.id === sectionId);
+    const sourceItems =
+      sectionData[sectionId]?.items || sourceSection?.items || {};
+    const sourceItem = sourceItems[itemId];
+    if (!sourceItem?.name) return true;
 
-        try {
-            const sourceSection = sections.find(
-                (section) => section.id === sectionId,
-            );
-            const sourceItems =
-                sectionData[sectionId]?.items || sourceSection?.items || {};
-            const sourceItem = sourceItems[itemId];
+    const targetName = sourceItem.name.trim().toLocaleLowerCase();
+    const matchingItems = sections.flatMap((section) => {
+      const items = sectionData[section.id]?.items || section.items || {};
+      return Object.values(items).filter(
+        (item) => item?.name?.trim().toLocaleLowerCase() === targetName,
+      );
+    });
 
-            if (!sourceItem?.name) throw new Error("प्रॉप सापडला नाही.");
+    const hasAssignee = matchingItems.some(
+      (item) => String(item.assignedTo || "").trim() !== "",
+    );
+    const isAlreadyChecked = matchingItems.some(
+      (item) => item?.checked === true,
+    );
 
-            const targetName = sourceItem.name.trim().toLocaleLowerCase();
-            const matchingOccurrences = [];
+    return (
+      !hasAssignee ||
+      (!isAdmin && isAlreadyChecked && !allowUsersEditAssignedNames)
+    );
+  }
 
-            for (const section of sections) {
-                const items =
-                    sectionData[section.id]?.items || section.items || {};
-                for (const [id, item] of Object.entries(items)) {
-                    if (item?.name?.trim().toLocaleLowerCase() === targetName) {
-                        matchingOccurrences.push({
-                            sectionId: section.id,
-                            itemId: id,
-                        });
-                    }
-                }
-            }
+  async function toggleChecked(sectionId, itemId, checked) {
+    setError("");
 
-            const uniqueSectionIds = [
-                ...new Set(matchingOccurrences.map((item) => item.sectionId)),
-            ];
+    try {
+      const sourceSection = sections.find(
+        (section) => section.id === sectionId,
+      );
+      const sourceItems =
+        sectionData[sectionId]?.items || sourceSection?.items || {};
+      const sourceItem = sourceItems[itemId];
 
-            if (
-                !matchingOccurrences.length ||
-                matchingOccurrences.length > 499
-            ) {
-                throw new Error("या प्रॉपच्या नोंदी अपडेट करता आल्या नाहीत.");
-            }
+      if (!sourceItem?.name) throw new Error("प्रॉप सापडला नाही.");
 
-            await runTransaction(db, async (tx) => {
-                const snapshots = new Map();
+      const targetName = sourceItem.name.trim().toLocaleLowerCase();
+      const matchingOccurrences = [];
 
-                for (const id of uniqueSectionIds) {
-                    const ref = doc(db, "dramaProps", id);
-                    const snap = await tx.get(ref);
-                    if (snap.exists())
-                        snapshots.set(id, { ref, data: snap.data() });
-                }
-
-                const currentItems = matchingOccurrences
-                    .map((occurrence) => {
-                        const section = snapshots.get(occurrence.sectionId);
-                        return section?.data.items?.[occurrence.itemId];
-                    })
-                    .filter(
-                        (item) =>
-                            item?.name?.trim().toLocaleLowerCase() ===
-                            targetName,
-                    );
-
-                const assignedTo = String(
-                    currentItems.find((item) =>
-                        String(item.assignedTo || "").trim(),
-                    )?.assignedTo || "",
-                ).trim();
-
-                if (
-                    !isAdmin &&
-                    !allowUsersEditAssignedNames &&
-                    !checked &&
-                    currentItems.some((item) => item?.checked === true)
-                ) {
-                    throw new Error(
-                        "हा प्रॉप checked आहे. Uncheck करण्याचा अधिकार फक्त Admin ला आहे.",
-                    );
-                }
-
-                if (checked && !assignedTo) {
-                    throw new Error(
-                        "Checkbox निवडण्यापूर्वी कोणाकडे आहे हे नाव लिहा.",
-                    );
-                }
-
-                for (const occurrence of matchingOccurrences) {
-                    const section = snapshots.get(occurrence.sectionId);
-                    const currentItem =
-                        section?.data.items?.[occurrence.itemId];
-
-                    if (
-                        !section ||
-                        currentItem?.name?.trim().toLocaleLowerCase() !==
-                            targetName
-                    )
-                        continue;
-
-                    tx.update(section.ref, {
-                        [`items.${occurrence.itemId}.checked`]: checked,
-                        [`items.${occurrence.itemId}.assignedTo`]: assignedTo,
-                        updatedAt: serverTimestamp(),
-                    });
-                }
-
-                tx.set(
-                    META_REF(),
-                    { lastUpdatedAt: serverTimestamp() },
-                    { merge: true },
-                );
+      for (const section of sections) {
+        const items = sectionData[section.id]?.items || section.items || {};
+        for (const [id, item] of Object.entries(items)) {
+          if (item?.name?.trim().toLocaleLowerCase() === targetName) {
+            matchingOccurrences.push({
+              sectionId: section.id,
+              itemId: id,
             });
-        } catch (e) {
-            console.error("Checkbox update failed:", e);
-            // setError(`Checkbox update save झाला नाही: ${e.message}`);
+          }
         }
-    }
+      }
 
-    // An अंक is represented by its first प्रवेश document in the existing
+      const uniqueSectionIds = [
+        ...new Set(matchingOccurrences.map((item) => item.sectionId)),
+      ];
 
-    // dramaProps collection. This keeps the current Firestore data model intact.
+      if (!matchingOccurrences.length || matchingOccurrences.length > 499) {
+        throw new Error("या प्रॉपच्या नोंदी अपडेट करता आल्या नाहीत.");
+      }
 
-    async function createAct() {
-        setError("");
+      await runTransaction(db, async (tx) => {
+        const snapshots = new Map();
 
-        try {
-            const nextAct = Math.max(0, ...acts) + 1;
-
-            const sectionId = `act${nextAct}_pravesh1`;
-
-            const ref = doc(db, "dramaProps", sectionId);
-
-            await runTransaction(db, async (tx) => {
-                const existing = await tx.get(ref);
-
-                if (existing.exists()) {
-                    throw new Error(`अंक ${nextAct} आधीपासून अस्तित्वात आहे.`);
-                }
-
-                tx.set(ref, {
-                    title: `अंक ${nextAct} - प्रवेश 1`,
-
-                    act: nextAct,
-
-                    pravesh: 1,
-
-                    items: {},
-
-                    createdAt: serverTimestamp(),
-
-                    updatedAt: serverTimestamp(),
-                });
-
-                await updateMeta(tx);
-            });
-
-            setSelectedAct(nextAct);
-
-            setSelectedSection(sectionId);
-
-            setSearch("");
-
-            setToast(`अंक ${nextAct} आणि प्रवेश 1 तयार झाला.`);
-        } catch (e) {
-            setError(`नवीन अंक तयार करता आला नाही: ${e.message}`);
-        }
-    }
-
-    async function createEntry() {
-        if (!acts.includes(selectedAct)) {
-            setError("प्रवेश तयार करण्यापूर्वी नवीन अंक तयार करा.");
-
-            return;
+        for (const id of uniqueSectionIds) {
+          const ref = doc(db, "dramaProps", id);
+          const snap = await tx.get(ref);
+          if (snap.exists()) snapshots.set(id, { ref, data: snap.data() });
         }
 
-        setError("");
+        const currentItems = matchingOccurrences
+          .map((occurrence) => {
+            const section = snapshots.get(occurrence.sectionId);
+            return section?.data.items?.[occurrence.itemId];
+          })
+          .filter(
+            (item) => item?.name?.trim().toLocaleLowerCase() === targetName,
+          );
+
+        const assignedTo = String(
+          currentItems.find((item) => String(item.assignedTo || "").trim())
+            ?.assignedTo || "",
+        ).trim();
 
-        try {
-            const existingEntries = sections
-
-                .filter((section) => getAct(section.id) === selectedAct)
-
-                .map((section) => getPravesh(section.id));
-
-            const nextEntry = Math.max(0, ...existingEntries) + 1;
-
-            const sectionId = `act${selectedAct}_pravesh${nextEntry}`;
-
-            const ref = doc(db, "dramaProps", sectionId);
-
-            await runTransaction(db, async (tx) => {
-                const existing = await tx.get(ref);
-
-                if (existing.exists()) {
-                    throw new Error(
-                        `प्रवेश ${nextEntry} आधीपासून अस्तित्वात आहे.`,
-                    );
-                }
-
-                tx.set(ref, {
-                    title: `अंक ${selectedAct} - प्रवेश ${nextEntry}`,
-
-                    act: selectedAct,
-
-                    pravesh: nextEntry,
-
-                    items: {},
-
-                    createdAt: serverTimestamp(),
-
-                    updatedAt: serverTimestamp(),
-                });
-
-                await updateMeta(tx);
-            });
-
-            setSelectedSection(sectionId);
-
-            setSearch("");
-
-            setToast(`अंक ${selectedAct} मध्ये प्रवेश ${nextEntry} तयार झाला.`);
-        } catch (e) {
-            setError(`नवीन प्रवेश तयार करता आला नाही: ${e.message}`);
-        }
-    }
-
-    async function addProp(sectionId, name) {
-        const id = `custom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
-        await runTransaction(db, async (tx) => {
-            const ref = doc(db, "dramaProps", sectionId);
-
-            const snap = await tx.get(ref);
-
-            if (!snap.exists()) throw new Error("Section सापडला नाही.");
-
-            const items = snap.data().items || {};
-
-            const nextOrder =
-                Math.max(
-                    0,
-
-                    ...Object.values(items).map((item) =>
-                        Number(item.order || 0),
-                    ),
-                ) + 1;
-
-            tx.update(ref, {
-                [`items.${id}`]: {
-                    name,
-
-                    checked: false,
-
-                    custom: true,
-
-                    order: nextOrder,
-                },
-
-                updatedAt: serverTimestamp(),
-            });
-
-            await updateMeta(tx);
-        });
-    }
-
-    async function updateSceneEntryName(sectionId, sceneEntryName) {
-        setError("");
-
-        try {
-            const ref = doc(db, "dramaProps", sectionId);
-
-            await runTransaction(db, async (tx) => {
-                const snap = await tx.get(ref);
-
-                if (!snap.exists()) {
-                    throw new Error("अंक / प्रवेश सापडला नाही.");
-                }
-
-                tx.update(ref, {
-                    sceneEntryName,
-
-                    updatedAt: serverTimestamp(),
-                });
-
-                await updateMeta(tx);
-            });
-
-            return true;
-        } catch (e) {
-            console.error("Scene/entry name update failed:", e);
-
-            setError(`अंक / प्रवेशाचे नाव save झाले नाही: ${e.message}`);
-
-            return false;
-        }
-    }
-
-    async function saveSceneEntryName() {
-        if (!currentSection || sceneEntryNameSaving) return;
-
-        const cleanName = sceneEntryNameDraft.trim();
-
-        if (!cleanName) {
-            setError("दृश्य / प्रवेशाचे नाव लिहा.");
-
-            return;
-        }
-
-        setSceneEntryNameSaving(true);
-
-        const saved = await updateSceneEntryName(currentSection.id, cleanName);
-
-        setSceneEntryNameSaving(false);
-
-        if (saved) {
-            setSceneEntryNameDraft(cleanName);
-
-            setSceneEntryNameEditing(false);
-
-            setToast("दृश्य / प्रवेशाचे नाव save झाले.");
-        }
-    }
-
-    async function updateAssignedTo(sectionId, itemId, assignedTo) {
-        setError("");
-
-        try {
-            const sourceSection = sections.find(
-                (section) => section.id === sectionId,
-            );
-            const sourceItems =
-                sectionData[sectionId]?.items || sourceSection?.items || {};
-            const sourceItem = sourceItems[itemId];
-
-            if (!sourceItem?.name) throw new Error("प्रॉप सापडला नाही.");
-
-            const targetName = sourceItem.name.trim().toLocaleLowerCase();
-            const matchingOccurrences = [];
-
-            for (const section of sections) {
-                const items =
-                    sectionData[section.id]?.items || section.items || {};
-                for (const [id, item] of Object.entries(items)) {
-                    if (item?.name?.trim().toLocaleLowerCase() === targetName) {
-                        matchingOccurrences.push({
-                            sectionId: section.id,
-                            itemId: id,
-                        });
-                    }
-                }
-            }
-
-            const uniqueSectionIds = [
-                ...new Set(matchingOccurrences.map((item) => item.sectionId)),
-            ];
-
-            if (matchingOccurrences.length > 499) {
-                throw new Error(
-                    "या प्रॉपच्या खूप नोंदी आहेत. एकाच वेळी अपडेट करता येणार नाही.",
-                );
-            }
-
-            await runTransaction(db, async (tx) => {
-                const snapshots = new Map();
-
-                for (const id of uniqueSectionIds) {
-                    const ref = doc(db, "dramaProps", id);
-                    const snap = await tx.get(ref);
-                    if (snap.exists())
-                        snapshots.set(id, { ref, data: snap.data() });
-                }
-
-                const currentMatchingItems = matchingOccurrences
-                    .map((occurrence) => {
-                        const section = snapshots.get(occurrence.sectionId);
-                        return section?.data.items?.[occurrence.itemId];
-                    })
-                    .filter(
-                        (item) =>
-                            item?.name?.trim().toLocaleLowerCase() ===
-                            targetName,
-                    );
-
-                if (
-                    !isAdmin &&
-                    !allowUsersEditAssignedNames &&
-                    currentMatchingItems.some((item) => item?.checked === true)
-                ) {
-                    throw new Error(
-                        "हा प्रॉप checked आहे. व्यक्तीचे नाव बदलण्याची परवानगी सध्या बंद आहे. Admin शी संपर्क करा.",
-                    );
-                }
-
-                for (const occurrence of matchingOccurrences) {
-                    const section = snapshots.get(occurrence.sectionId);
-                    const currentItem =
-                        section?.data.items?.[occurrence.itemId];
-
-                    if (
-                        !section ||
-                        currentItem?.name?.trim().toLocaleLowerCase() !==
-                            targetName
-                    )
-                        continue;
-
-                    tx.update(section.ref, {
-                        [`items.${occurrence.itemId}.assignedTo`]: assignedTo,
-                        // Clearing the assignee also clears every matching checkbox.
-                        ...(assignedTo
-                            ? {}
-                            : {
-                                  [`items.${occurrence.itemId}.checked`]: false,
-                              }),
-                        updatedAt: serverTimestamp(),
-                    });
-                }
-
-                await updateMeta(tx);
-            });
-        } catch (e) {
-            console.error("Assigned person update failed:", e);
-            setError(`प्रॉप कोणाकडे आहे हे save झाले नाही: ${e.message}`);
-        }
-    }
-
-    async function updatePropName(sectionId, itemId, name) {
-        const cleanName = name.trim();
-
-        if (!cleanName) {
-            setError("प्रॉपचे नाव रिकामे ठेवता येणार नाही.");
-
-            return false;
-        }
-
-        setError("");
-
-        try {
-            const ref = doc(db, "dramaProps", sectionId);
-
-            await runTransaction(db, async (tx) => {
-                const snap = await tx.get(ref);
-
-                if (!snap.exists() || !snap.data().items?.[itemId]) {
-                    throw new Error("प्रॉप सापडला नाही.");
-                }
-
-                tx.update(ref, {
-                    [`items.${itemId}.name`]: cleanName,
-
-                    updatedAt: serverTimestamp(),
-                });
-
-                await updateMeta(tx);
-            });
-
-            setEditingPropId("");
-
-            setEditingPropName("");
-
-            setToast("प्रॉपचे नाव अपडेट झाले.");
-
-            return true;
-        } catch (e) {
-            setError(`प्रॉपचे नाव अपडेट झाले नाही: ${e.message}`);
-
-            return false;
-        }
-    }
-
-    function submitAdminLogin(e) {
-        e.preventDefault();
-
-        const enteredPin = String(adminPin).trim();
-
-        if (!/^[0-9]{4}$/.test(enteredPin)) {
-            setLoginError("कृपया 4 अंकी code टाका.");
-
-            return;
-        }
-
-        if (!ADMIN_PIN) {
-            setLoginError("Admin PIN सेट केलेला नाही.");
-
-            return;
-        }
-
-        if (enteredPin !== String(ADMIN_PIN).trim()) {
-            setLoginError("चुकीचा code. पुन्हा प्रयत्न करा.");
-
-            return;
-        }
-
-        setIsAdmin(true);
-        try {
-            window.localStorage.setItem("dramaPropsAdminLoggedIn", "true");
-        } catch (storageError) {
-            console.error("Could not persist Admin Mode:", storageError);
-        }
-
-        setLoginOpen(false);
-
-        setAdminPin("");
-
-        setLoginError("");
-
-        setToast("Admin mode सुरू झाला.");
-    }
-
-    async function deleteProp(section, itemId, item) {
         if (
-            !window.confirm(
-                `"${item.name}" हा प्रॉप delete करायचा आहे का? तो Trash मध्ये जाईल.`,
-            )
-        )
-            return;
-
-        setError("");
-
-        const trashId = `trash_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
-        try {
-            await runTransaction(db, async (tx) => {
-                const sectionRef = doc(db, "dramaProps", section.id);
-
-                const snap = await tx.get(sectionRef);
-
-                if (!snap.exists() || !snap.data().items?.[itemId])
-                    throw new Error("हा प्रॉप सापडला नाही.");
-
-                const live = snap.data().items[itemId];
-
-                tx.set(doc(db, "dramaPropsTrash", trashId), {
-                    originalSectionId: section.id,
-
-                    originalSectionTitle: section.title,
-
-                    originalItemId: itemId,
-
-                    name: live.name,
-
-                    assignedTo: live.assignedTo || "",
-
-                    checked: !!live.checked,
-
-                    custom: !!live.custom,
-
-                    order: Number(live.order || 0),
-
-                    deletedAt: serverTimestamp(),
-                });
-
-                tx.update(sectionRef, {
-                    [`items.${itemId}`]: deleteField(),
-
-                    updatedAt: serverTimestamp(),
-                });
-
-                await updateMeta(tx);
-            });
-
-            setToast("प्रॉप Trash मध्ये हलवला.");
-        } catch (e) {
-            setError(`प्रॉप Trash मध्ये हलवताना error: ${e.message}`);
+          !isAdmin &&
+          !allowUsersEditAssignedNames &&
+          !checked &&
+          currentItems.some((item) => item?.checked === true)
+        ) {
+          throw new Error(
+            "हा प्रॉप checked आहे. Uncheck करण्याचा अधिकार फक्त Admin ला आहे.",
+          );
         }
+
+        if (checked && !assignedTo) {
+          throw new Error("Checkbox निवडण्यापूर्वी कोणाकडे आहे हे नाव लिहा.");
+        }
+
+        for (const occurrence of matchingOccurrences) {
+          const section = snapshots.get(occurrence.sectionId);
+          const currentItem = section?.data.items?.[occurrence.itemId];
+
+          if (
+            !section ||
+            currentItem?.name?.trim().toLocaleLowerCase() !== targetName
+          )
+            continue;
+
+          tx.update(section.ref, {
+            [`items.${occurrence.itemId}.checked`]: checked,
+            [`items.${occurrence.itemId}.assignedTo`]: assignedTo,
+            updatedAt: serverTimestamp(),
+          });
+        }
+
+        await updateMeta(tx);
+      });
+    } catch (e) {
+      console.error("Checkbox update failed:", e);
+      // setError(`Checkbox update save झाला नाही: ${e.message}`);
+    }
+  }
+
+  // An अंक is represented by its first प्रवेश document in the existing
+
+  // dramaProps collection. This keeps the current Firestore data model intact.
+
+  async function createAct() {
+    setError("");
+
+    try {
+      const nextAct = Math.max(0, ...acts) + 1;
+
+      const sectionId = `act${nextAct}_pravesh1`;
+
+      const ref = doc(db, "dramaProps", sectionId);
+
+      await runTransaction(db, async (tx) => {
+        const existing = await tx.get(ref);
+
+        if (existing.exists()) {
+          throw new Error(`अंक ${nextAct} आधीपासून अस्तित्वात आहे.`);
+        }
+
+        tx.set(ref, {
+          title: `अंक ${nextAct} - प्रवेश 1`,
+
+          act: nextAct,
+
+          pravesh: 1,
+
+          items: {},
+
+          createdAt: serverTimestamp(),
+
+          updatedAt: serverTimestamp(),
+        });
+
+        await updateMeta(tx);
+      });
+
+      setSelectedAct(nextAct);
+
+      setSelectedSection(sectionId);
+
+      setSearch("");
+
+      setToast(`अंक ${nextAct} आणि प्रवेश 1 तयार झाला.`);
+    } catch (e) {
+      setError(`नवीन अंक तयार करता आला नाही: ${e.message}`);
+    }
+  }
+
+  async function createEntry() {
+    if (!acts.includes(selectedAct)) {
+      setError("प्रवेश तयार करण्यापूर्वी नवीन अंक तयार करा.");
+
+      return;
     }
 
-    async function restoreProp(item) {
-        try {
-            await runTransaction(db, async (tx) => {
-                const trashRef = doc(db, "dramaPropsTrash", item.id);
+    setError("");
 
-                const trashSnap = await tx.get(trashRef);
+    try {
+      const existingEntries = sections
 
-                if (!trashSnap.exists())
-                    throw new Error("Deleted prop सापडला नाही.");
+        .filter((section) => getAct(section.id) === selectedAct)
 
-                const deleted = trashSnap.data();
+        .map((section) => getPravesh(section.id));
 
-                const sectionRef = doc(
-                    db,
-                    "dramaProps",
-                    deleted.originalSectionId,
-                );
+      const nextEntry = Math.max(0, ...existingEntries) + 1;
 
-                const sectionSnap = await tx.get(sectionRef);
+      const sectionId = `act${selectedAct}_pravesh${nextEntry}`;
 
-                if (!sectionSnap.exists())
-                    throw new Error("मूळ अंक / प्रवेश सापडला नाही.");
+      const ref = doc(db, "dramaProps", sectionId);
 
-                const items = sectionSnap.data().items || {};
+      await runTransaction(db, async (tx) => {
+        const existing = await tx.get(ref);
 
-                let restoreId = deleted.originalItemId;
-
-                if (items[restoreId])
-                    restoreId = `restored_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
-                tx.update(sectionRef, {
-                    [`items.${restoreId}`]: {
-                        name: deleted.name,
-
-                        assignedTo: deleted.assignedTo || "",
-
-                        checked: !!deleted.checked,
-
-                        custom: !!deleted.custom,
-
-                        order: Number(deleted.order || 0),
-                    },
-
-                    updatedAt: serverTimestamp(),
-                });
-
-                tx.delete(trashRef);
-
-                await updateMeta(tx);
-            });
-
-            setToast("प्रॉप restore केला.");
-        } catch (e) {
-            setError(`प्रॉप restore करताना error: ${e.message}`);
+        if (existing.exists()) {
+          throw new Error(`प्रवेश ${nextEntry} आधीपासून अस्तित्वात आहे.`);
         }
+
+        tx.set(ref, {
+          title: `अंक ${selectedAct} - प्रवेश ${nextEntry}`,
+
+          act: selectedAct,
+
+          pravesh: nextEntry,
+
+          items: {},
+
+          createdAt: serverTimestamp(),
+
+          updatedAt: serverTimestamp(),
+        });
+
+        await updateMeta(tx);
+      });
+
+      setSelectedSection(sectionId);
+
+      setSearch("");
+
+      setToast(`अंक ${selectedAct} मध्ये प्रवेश ${nextEntry} तयार झाला.`);
+    } catch (e) {
+      setError(`नवीन प्रवेश तयार करता आला नाही: ${e.message}`);
+    }
+  }
+
+  async function addProp(sectionId, name) {
+    const id = `custom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    await runTransaction(db, async (tx) => {
+      const ref = doc(db, "dramaProps", sectionId);
+
+      const snap = await tx.get(ref);
+
+      if (!snap.exists()) throw new Error("Section सापडला नाही.");
+
+      const items = snap.data().items || {};
+
+      const nextOrder =
+        Math.max(
+          0,
+
+          ...Object.values(items).map((item) => Number(item.order || 0)),
+        ) + 1;
+
+      tx.update(ref, {
+        [`items.${id}`]: {
+          name,
+
+          checked: false,
+
+          custom: true,
+
+          order: nextOrder,
+        },
+
+        updatedAt: serverTimestamp(),
+      });
+
+      await updateMeta(tx);
+    });
+  }
+
+  async function updateSceneEntryName(sectionId, sceneEntryName) {
+    setError("");
+
+    try {
+      const ref = doc(db, "dramaProps", sectionId);
+
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+
+        if (!snap.exists()) {
+          throw new Error("अंक / प्रवेश सापडला नाही.");
+        }
+
+        tx.update(ref, {
+          sceneEntryName,
+
+          updatedAt: serverTimestamp(),
+        });
+
+        await updateMeta(tx);
+      });
+
+      return true;
+    } catch (e) {
+      console.error("Scene/entry name update failed:", e);
+
+      setError(`अंक / प्रवेशाचे नाव save झाले नाही: ${e.message}`);
+
+      return false;
+    }
+  }
+
+  async function saveSceneEntryName() {
+    if (!currentSection || sceneEntryNameSaving) return;
+
+    const cleanName = sceneEntryNameDraft.trim();
+
+    if (!cleanName) {
+      setError("दृश्य / प्रवेशाचे नाव लिहा.");
+
+      return;
     }
 
-    async function deletePermanently(item) {
-        const confirmed = window.confirm(
-            `"${item.name}" हा प्रॉप Trash मधून कायमचा delete करायचा आहे का?\n\nही कृती पूर्ववत करता येणार नाही.`,
+    setSceneEntryNameSaving(true);
+
+    const saved = await updateSceneEntryName(currentSection.id, cleanName);
+
+    setSceneEntryNameSaving(false);
+
+    if (saved) {
+      setSceneEntryNameDraft(cleanName);
+
+      setSceneEntryNameEditing(false);
+
+      setToast("दृश्य / प्रवेशाचे नाव save झाले.");
+    }
+  }
+
+async function updateAssignedTo(sectionId, itemId, assignedTo, inputEl = null) {
+  setError("");
+
+  const sourceSection = sections.find((section) => section.id === sectionId);
+  const sourceItems =
+    sectionData[sectionId]?.items || sourceSection?.items || {};
+  const sourceItem = sourceItems[itemId];
+
+  if (containsAbusiveWord(assignedTo)) {
+    if (inputEl) {
+      inputEl.value = sourceItem?.assignedTo || "";
+    }
+    setError("व्यक्तीच्या नावात अयोग्य किंवा अपशब्द वापरता येणार नाही.");
+    return;
+  }
+
+  try {
+    if (!sourceItem?.name) throw new Error("प्रॉप सापडला नाही.");
+
+    const targetName = sourceItem.name.trim().toLocaleLowerCase();
+    const matchingOccurrences = [];
+
+    for (const section of sections) {
+      const items = sectionData[section.id]?.items || section.items || {};
+      for (const [id, item] of Object.entries(items)) {
+        if (item?.name?.trim().toLocaleLowerCase() === targetName) {
+          matchingOccurrences.push({
+            sectionId: section.id,
+            itemId: id,
+          });
+        }
+      }
+    }
+
+    const uniqueSectionIds = [
+      ...new Set(matchingOccurrences.map((item) => item.sectionId)),
+    ];
+
+    if (matchingOccurrences.length > 499) {
+      throw new Error(
+        "या प्रॉपच्या खूप नोंदी आहेत. एकाच वेळी अपडेट करता येणार नाही.",
+      );
+    }
+
+    await runTransaction(db, async (tx) => {
+      const snapshots = new Map();
+
+      for (const id of uniqueSectionIds) {
+        const ref = doc(db, "dramaProps", id);
+        const snap = await tx.get(ref);
+        if (snap.exists()) snapshots.set(id, { ref, data: snap.data() });
+      }
+
+      const currentMatchingItems = matchingOccurrences
+        .map((occurrence) => {
+          const section = snapshots.get(occurrence.sectionId);
+          return section?.data.items?.[occurrence.itemId];
+        })
+        .filter(
+          (item) => item?.name?.trim().toLocaleLowerCase() === targetName,
         );
 
-        if (!confirmed) return;
+      if (
+        !isAdmin &&
+        !allowUsersEditAssignedNames &&
+        currentMatchingItems.some((item) => item?.checked === true)
+      ) {
+        throw new Error(
+          "हा प्रॉप checked आहे. व्यक्तीचे नाव बदलण्याची परवानगी सध्या बंद आहे. Admin शी संपर्क करा.",
+        );
+      }
 
-        setError("");
+      for (const occurrence of matchingOccurrences) {
+        const section = snapshots.get(occurrence.sectionId);
+        const currentItem = section?.data.items?.[occurrence.itemId];
 
-        try {
-            const trashRef = doc(db, "dramaPropsTrash", item.id);
+        if (
+          !section ||
+          currentItem?.name?.trim().toLocaleLowerCase() !== targetName
+        )
+          continue;
 
-            await runTransaction(db, async (tx) => {
-                const snap = await tx.get(trashRef);
+        tx.update(section.ref, {
+          [`items.${occurrence.itemId}.assignedTo`]: assignedTo,
+          // Clearing the assignee also clears every matching checkbox.
+          ...(assignedTo
+            ? {}
+            : {
+                [`items.${occurrence.itemId}.checked`]: false,
+              }),
+          updatedAt: serverTimestamp(),
+        });
+      }
 
-                if (!snap.exists()) {
-                    throw new Error("हा deleted prop आधीच delete झाला आहे.");
-                }
+      await updateMeta(tx);
+    });
+  } catch (e) {
+    console.error("Assigned person update failed:", e);
+    setError(`प्रॉप कोणाकडे आहे हे save झाले नाही: ${e.message}`);
+  }
+}
 
-                tx.delete(trashRef);
-            });
+  async function updatePropName(sectionId, itemId, name) {
+    const cleanName = name.trim();
 
-            setToast("प्रॉप कायमचा delete केला.");
-        } catch (e) {
-            console.error("Permanent delete failed:", e);
+    if (!cleanName) {
+      setError("प्रॉपचे नाव रिकामे ठेवता येणार नाही.");
 
-            setError(`प्रॉप कायमचा delete करताना error: ${e.message}`);
-        }
+      return false;
     }
 
-    async function downloadPdf(checkedMode, uniqueMode = false) {
-        if (!sections.length) {
-            setError(
-                "PDF तयार करण्यासाठी Firestore मधील props data load होणे आवश्यक आहे.",
-            );
+    setError("");
 
-            return;
+    try {
+      const ref = doc(db, "dramaProps", sectionId);
+
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+
+        if (!snap.exists() || !snap.data().items?.[itemId]) {
+          throw new Error("प्रॉप सापडला नाही.");
         }
 
-        setPdfBusy(true);
+        tx.update(ref, {
+          [`items.${itemId}.name`]: cleanName,
 
-        setPdfMenu(false);
+          updatedAt: serverTimestamp(),
+        });
 
-        setError("");
+        await updateMeta(tx);
+      });
 
-        let source;
+      setEditingPropId("");
 
-        try {
-            const sortedSections = sortSections(sections);
+      setEditingPropName("");
 
-            source = document.createElement("div");
+      setToast("प्रॉपचे नाव अपडेट झाले.");
 
-            source.className = "pdf-export-root";
+      return true;
+    } catch (e) {
+      setError(`प्रॉपचे नाव अपडेट झाले नाही: ${e.message}`);
 
-            source.style.cssText = `
+      return false;
+    }
+  }
+
+  function submitAdminLogin(e) {
+    e.preventDefault();
+
+    const enteredPin = String(adminPin).trim();
+
+    if (!/^[0-9]{4}$/.test(enteredPin)) {
+      setLoginError("कृपया 4 अंकी code टाका.");
+
+      return;
+    }
+
+    if (!ADMIN_PIN) {
+      setLoginError("Admin PIN सेट केलेला नाही.");
+
+      return;
+    }
+
+    if (enteredPin !== String(ADMIN_PIN).trim()) {
+      setLoginError("चुकीचा code. पुन्हा प्रयत्न करा.");
+
+      return;
+    }
+
+    setIsAdmin(true);
+    try {
+      window.localStorage.setItem("dramaPropsAdminLoggedIn", "true");
+    } catch (storageError) {
+      console.error("Could not persist Admin Mode:", storageError);
+    }
+
+    setLoginOpen(false);
+
+    setAdminPin("");
+
+    setLoginError("");
+
+    setToast("Admin mode सुरू झाला.");
+  }
+
+  async function deleteProp(section, itemId, item) {
+    if (
+      !window.confirm(
+        `"${item.name}" हा प्रॉप delete करायचा आहे का? तो Trash मध्ये जाईल.`,
+      )
+    )
+      return;
+
+    setError("");
+
+    const trashId = `trash_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    try {
+      await runTransaction(db, async (tx) => {
+        const sectionRef = doc(db, "dramaProps", section.id);
+
+        const snap = await tx.get(sectionRef);
+
+        if (!snap.exists() || !snap.data().items?.[itemId])
+          throw new Error("हा प्रॉप सापडला नाही.");
+
+        const live = snap.data().items[itemId];
+
+        tx.set(doc(db, "dramaPropsTrash", trashId), {
+          originalSectionId: section.id,
+
+          originalSectionTitle: section.title,
+
+          originalItemId: itemId,
+
+          name: live.name,
+
+          assignedTo: live.assignedTo || "",
+
+          checked: !!live.checked,
+
+          custom: !!live.custom,
+
+          order: Number(live.order || 0),
+
+          deletedAt: serverTimestamp(),
+        });
+
+        tx.update(sectionRef, {
+          [`items.${itemId}`]: deleteField(),
+
+          updatedAt: serverTimestamp(),
+        });
+
+        await updateMeta(tx);
+      });
+
+      setToast("प्रॉप Trash मध्ये हलवला.");
+    } catch (e) {
+      setError(`प्रॉप Trash मध्ये हलवताना error: ${e.message}`);
+    }
+  }
+
+  async function restoreProp(item) {
+    try {
+      await runTransaction(db, async (tx) => {
+        const trashRef = doc(db, "dramaPropsTrash", item.id);
+
+        const trashSnap = await tx.get(trashRef);
+
+        if (!trashSnap.exists()) throw new Error("Deleted prop सापडला नाही.");
+
+        const deleted = trashSnap.data();
+
+        const sectionRef = doc(db, "dramaProps", deleted.originalSectionId);
+
+        const sectionSnap = await tx.get(sectionRef);
+
+        if (!sectionSnap.exists())
+          throw new Error("मूळ अंक / प्रवेश सापडला नाही.");
+
+        const items = sectionSnap.data().items || {};
+
+        let restoreId = deleted.originalItemId;
+
+        if (items[restoreId])
+          restoreId = `restored_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+        tx.update(sectionRef, {
+          [`items.${restoreId}`]: {
+            name: deleted.name,
+
+            assignedTo: deleted.assignedTo || "",
+
+            checked: !!deleted.checked,
+
+            custom: !!deleted.custom,
+
+            order: Number(deleted.order || 0),
+          },
+
+          updatedAt: serverTimestamp(),
+        });
+
+        tx.delete(trashRef);
+
+        await updateMeta(tx);
+      });
+
+      setToast("प्रॉप restore केला.");
+    } catch (e) {
+      setError(`प्रॉप restore करताना error: ${e.message}`);
+    }
+  }
+
+  async function deletePermanently(item) {
+    const confirmed = window.confirm(
+      `"${item.name}" हा प्रॉप Trash मधून कायमचा delete करायचा आहे का?\n\nही कृती पूर्ववत करता येणार नाही.`,
+    );
+
+    if (!confirmed) return;
+
+    setError("");
+
+    try {
+      const trashRef = doc(db, "dramaPropsTrash", item.id);
+
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(trashRef);
+
+        if (!snap.exists()) {
+          throw new Error("हा deleted prop आधीच delete झाला आहे.");
+        }
+
+        tx.delete(trashRef);
+      });
+
+      setToast("प्रॉप कायमचा delete केला.");
+    } catch (e) {
+      console.error("Permanent delete failed:", e);
+
+      setError(`प्रॉप कायमचा delete करताना error: ${e.message}`);
+    }
+  }
+
+  async function downloadPdf(checkedMode, uniqueMode = false) {
+    if (!sections.length) {
+      setError(
+        "PDF तयार करण्यासाठी Firestore मधील props data load होणे आवश्यक आहे.",
+      );
+
+      return;
+    }
+
+    setPdfBusy(true);
+
+    setPdfMenu(false);
+
+    setError("");
+
+    let source;
+
+    try {
+      const sortedSections = sortSections(sections);
+
+      source = document.createElement("div");
+
+      source.className = "pdf-export-root";
+
+      source.style.cssText = `
 
       position: fixed;
 
@@ -1343,7 +1392,7 @@ export default function App() {
 
     `;
 
-            let html = `
+      let html = `
 
       <div style="text-align:center;margin-bottom:20px;">
 
@@ -1357,51 +1406,53 @@ export default function App() {
 
     `;
 
-            // OPTION 3: All props without duplicates.
+      // OPTION 3: All props without duplicates.
 
-            // If the same prop is assigned to different people in different entries,
+      // If the same prop is assigned to different people in different entries,
 
-            // retain all distinct assignee names in the consolidated PDF.
+      // retain all distinct assignee names in the consolidated PDF.
 
-            if (uniqueMode) {
-                const uniqueProps = new Map();
+      if (uniqueMode) {
+        const uniqueProps = new Map();
 
-                for (const section of sortedSections) {
-                    const items = sortItems(
-                        sectionData[section.id]?.items || section.items || {},
-                    );
+        for (const section of sortedSections) {
+          const items = sortItems(
+            sectionData[section.id]?.items || section.items || {},
+          );
 
-                    for (const [, item] of items) {
-                        const name = String(item?.name || "")
-                            .replace(/\s+/g, " ")
+          for (const [, item] of items) {
+            const name = String(item?.name || "")
+              .replace(/\s+/g, " ")
 
-                            .trim();
+              .trim();
 
-                        if (!name) continue;
+            if (!name) continue;
 
-                        const normalizedName = name.toLocaleLowerCase();
+            const normalizedName = name.toLocaleLowerCase();
 
-                        if (!uniqueProps.has(normalizedName)) {
-                            uniqueProps.set(normalizedName, {
-                                name,
+            if (!uniqueProps.has(normalizedName)) {
+              uniqueProps.set(normalizedName, {
+                name,
 
-                                assignedTo: new Set(),
-                            });
-                        }
+                assignedTo: new Set(),
+              });
+            }
 
-                        const assignedTo = String(
-                            item?.assignedTo || "",
-                        ).trim();
+            const assignedTo = String(item?.assignedTo || "");
+            assignedTo.split(",").forEach((entry) => {
+              const cleanPerson = entry.replace(/\s+/g, " ").trim();
+              if (cleanPerson) {
+                uniqueProps.get(normalizedName).assignedTo.add(cleanPerson);
+              }
+            });
 
-                        if (assignedTo) {
-                            uniqueProps
-                                .get(normalizedName)
-                                .assignedTo.add(assignedTo);
-                        }
-                    }
-                }
+            if (assignedTo) {
+              uniqueProps.get(normalizedName).assignedTo.add(assignedTo);
+            }
+          }
+        }
 
-                html += `
+        html += `
 
         <div style="
 
@@ -1419,14 +1470,14 @@ export default function App() {
 
       `;
 
-                let index = 0;
+        let index = 0;
 
-                for (const prop of uniqueProps.values()) {
-                    index++;
+        for (const prop of uniqueProps.values()) {
+          index++;
 
-                    const people = [...prop.assignedTo].join(", ");
+          const people = [...prop.assignedTo].join(", ");
 
-                    html += `
+          html += `
 
           <div style="
 
@@ -1461,30 +1512,30 @@ export default function App() {
             </span>
 
             ${
-                people
-                    ? `<span style="margin-left:12px;color:#555;white-space:normal;">${escapeText(people)}</span>`
-                    : ""
+              people
+                ? `<span style="margin-left:12px;color:#555;white-space:normal;">${escapeText(people)}</span>`
+                : ""
             }
 
           </div>
 
         `;
-                }
+        }
 
-                html += `</div>`;
-            } else {
-                // OPTION 1 and 2: Blank and checked checklists
+        html += `</div>`;
+      } else {
+        // OPTION 1 and 2: Blank and checked checklists
 
-                let activeAct = null;
+        let activeAct = null;
 
-                for (const section of sortedSections) {
-                    const act = getAct(section.id);
+        for (const section of sortedSections) {
+          const act = getAct(section.id);
 
-                    if (act !== activeAct) {
-                        const startsNewPage = activeAct !== null;
-                        activeAct = act;
+          if (act !== activeAct) {
+            const startsNewPage = activeAct !== null;
+            activeAct = act;
 
-                        html += `
+            html += `
 
             ${startsNewPage ? '<div class="html2pdf__page-break" style="display:block;width:100%;height:1px;min-height:1px;page-break-after:always;break-after:page;"></div>' : ""}
 
@@ -1515,16 +1566,16 @@ export default function App() {
             </div>
 
           `;
-                    }
+          }
 
-                    const sectionDisplayTitle =
-                        section.title || `प्रवेश ${getPravesh(section.id)}`;
+          const sectionDisplayTitle =
+            section.title || `प्रवेश ${getPravesh(section.id)}`;
 
-                    const sceneEntryName = String(
-                        sectionData[section.id]?.sceneEntryName || "",
-                    ).trim();
+          const sceneEntryName = String(
+            sectionData[section.id]?.sceneEntryName || "",
+          ).trim();
 
-                    html += `
+          html += `
 
           <h3 style="
 
@@ -1543,21 +1594,21 @@ export default function App() {
             ${escapeText(sectionDisplayTitle)}
 
             ${
-                sceneEntryName
-                    ? `<span style="margin-left:12px;font-size:11px;font-weight:normal;color:#555;">${escapeText(sceneEntryName)}</span>`
-                    : ""
+              sceneEntryName
+                ? `<span style="margin-left:12px;font-size:11px;font-weight:normal;color:#555;">${escapeText(sceneEntryName)}</span>`
+                : ""
             }
 
           </h3>
 
         `;
 
-                    const items = sortItems(
-                        sectionData[section.id]?.items || section.items || {},
-                    );
+          const items = sortItems(
+            sectionData[section.id]?.items || section.items || {},
+          );
 
-                    if (!items.length) {
-                        html += `
+          if (!items.length) {
+            html += `
 
             <p style="font-size:10px;color:#666;padding:5px 0;">
 
@@ -1567,10 +1618,10 @@ export default function App() {
 
           `;
 
-                        continue;
-                    }
+            continue;
+          }
 
-                    html += `
+          html += `
 
           <div style="
 
@@ -1590,10 +1641,10 @@ export default function App() {
 
         `;
 
-                    items.forEach(([, item], index) => {
-                        const isChecked = item?.checked === true;
+          items.forEach(([, item], index) => {
+            const isChecked = item?.checked === true;
 
-                        html += `
+            html += `
 
             <div style="
 
@@ -1622,13 +1673,13 @@ export default function App() {
               </span>
 
               ${
-                  checkedMode
-                      ? `<span style="min-width:13px;font-size:12px;">
+                checkedMode
+                  ? `<span style="min-width:13px;font-size:12px;">
 
                       ${isChecked ? "☑" : "☐"}
 
                     </span>`
-                      : ""
+                  : ""
               }
 
               <span style="min-width:0;">
@@ -1638,427 +1689,395 @@ export default function App() {
               </span>
 
               ${
-                  item?.assignedTo
-                      ? `<span style="margin-left:14px;color:#555;min-width:0;white-space:normal;">${escapeText(item.assignedTo)}</span>`
-                      : ""
+                item?.assignedTo
+                  ? `<span style="margin-left:14px;color:#555;min-width:0;white-space:normal;">${escapeText(item.assignedTo)}</span>`
+                  : ""
               }
 
             </div>
 
           `;
-                    });
+          });
 
-                    html += `</div>`;
-                }
-            }
-
-            // Insert the generated HTML before attaching the element.
-
-            source.innerHTML = html;
-
-            document.body.appendChild(source);
-
-            await new Promise((resolve) => {
-                requestAnimationFrame(() => {
-                    requestAnimationFrame(resolve);
-                });
-            });
-
-            if (document.fonts?.ready) {
-                await document.fonts.ready;
-            }
-
-            if (!source.textContent?.trim()) {
-                throw new Error(
-                    "PDF content रिकामे आहे. Props data load झाला आहे का ते तपासा.",
-                );
-            }
-
-            const options = {
-                margin: [6, 6, 6, 6],
-
-                filename: uniqueMode
-                    ? "अकत्रित_Props.pdf"
-                    : "प्रवेश_परमाणे_props.pdf",
-
-                image: {
-                    type: "jpeg",
-
-                    quality: 0.98,
-                },
-
-                html2canvas: {
-                    scale: 2,
-
-                    backgroundColor: "#ffffff",
-
-                    useCORS: true,
-
-                    logging: true,
-
-                    scrollX: 0,
-
-                    scrollY: 0,
-
-                    windowWidth: 1200,
-                },
-
-                jsPDF: {
-                    unit: "mm",
-
-                    format: "a4",
-
-                    orientation: "portrait",
-
-                    compress: true,
-                },
-
-                pagebreak: {
-                    mode: ["css", "legacy"],
-
-                    // The marker is placed between the previous act and the next act.
-                    // Force a page break AFTER the marker (not before the heading).
-                    after: [".html2pdf__page-break"],
-
-                    before: [".act-page-start"],
-
-                    avoid: ["h2", "h3"],
-                },
-            };
-
-            // Generate from the HTML element directly so html2pdf can honor
-            // page breaks between acts. Converting the whole document to one
-            // canvas first would remove the act-level page-break boundaries.
-            const pdf = await html2pdf()
-                .set(options)
-                .from(source)
-                .toPdf()
-                .get("pdf");
-
-            if (!pdf || pdf.getNumberOfPages() < 1) {
-                throw new Error("PDF तयार झाला नाही.");
-            }
-
-            const blob = pdf.output("blob");
-
-            if (!blob || blob.size < 1000) {
-                throw new Error("PDF रिकामा आहे. पुन्हा प्रयत्न करा.");
-            }
-
-            const url = URL.createObjectURL(blob);
-
-            const link = document.createElement("a");
-
-            link.href = url;
-
-            link.download = options.filename;
-
-            document.body.appendChild(link);
-
-            link.click();
-
-            link.remove();
-
-            window.setTimeout(() => URL.revokeObjectURL(url), 10000);
-
-            setToast(
-                uniqueMode
-                    ? "All Props — Without Duplicates PDF डाउनलोड सुरू झाला."
-                    : "Blank Checklist PDF डाउनलोड सुरू झाला.",
-            );
-        } catch (e) {
-            console.error("PDF generation failed:", e);
-
-            setError(
-                `PDF तयार करताना error आला: ${e?.message || "Unknown error"}`,
-            );
-        } finally {
-            source?.remove();
-
-            setPdfBusy(false);
+          html += `</div>`;
         }
-    }
+      }
 
-    function exportTrashBackup() {
-        const backup = trash.map(({ id, ...item }) => ({
-            ...item,
+      // Insert the generated HTML before attaching the element.
 
-            deletedAt: item.deletedAt?.toDate?.().toISOString?.() || null,
-        }));
+      source.innerHTML = html;
 
-        const blob = new Blob([JSON.stringify(backup, null, 2)], {
-            type: "application/json;charset=utf-8",
+      document.body.appendChild(source);
+
+      await new Promise((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(resolve);
         });
+      });
 
-        const url = URL.createObjectURL(blob);
+      if (document.fonts?.ready) {
+        await document.fonts.ready;
+      }
 
-        const a = document.createElement("a");
+      if (!source.textContent?.trim()) {
+        throw new Error(
+          "PDF content रिकामे आहे. Props data load झाला आहे का ते तपासा.",
+        );
+      }
 
-        a.href = url;
+      const options = {
+        margin: [6, 6, 6, 6],
 
-        a.download = "Props_Trash_Backup.json";
+        filename: uniqueMode ? "अकत्रित_Props.pdf" : "प्रवेश_परमाणे_props.pdf",
 
-        a.click();
+        image: {
+          type: "jpeg",
 
-        URL.revokeObjectURL(url);
+          quality: 0.98,
+        },
+
+        html2canvas: {
+          scale: 2,
+
+          backgroundColor: "#ffffff",
+
+          useCORS: true,
+
+          logging: true,
+
+          scrollX: 0,
+
+          scrollY: 0,
+
+          windowWidth: 1200,
+        },
+
+        jsPDF: {
+          unit: "mm",
+
+          format: "a4",
+
+          orientation: "portrait",
+
+          compress: true,
+        },
+
+        pagebreak: {
+          mode: ["css", "legacy"],
+
+          // The marker is placed between the previous act and the next act.
+          // Force a page break AFTER the marker (not before the heading).
+          after: [".html2pdf__page-break"],
+
+          before: [".act-page-start"],
+
+          avoid: ["h2", "h3"],
+        },
+      };
+
+      // Generate from the HTML element directly so html2pdf can honor
+      // page breaks between acts. Converting the whole document to one
+      // canvas first would remove the act-level page-break boundaries.
+      const pdf = await html2pdf().set(options).from(source).toPdf().get("pdf");
+
+      if (!pdf || pdf.getNumberOfPages() < 1) {
+        throw new Error("PDF तयार झाला नाही.");
+      }
+
+      const blob = pdf.output("blob");
+
+      if (!blob || blob.size < 1000) {
+        throw new Error("PDF रिकामा आहे. पुन्हा प्रयत्न करा.");
+      }
+
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+
+      link.href = url;
+
+      link.download = options.filename;
+
+      document.body.appendChild(link);
+
+      link.click();
+
+      link.remove();
+
+      window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+      setToast(
+        uniqueMode
+          ? "All Props — Without Duplicates PDF डाउनलोड सुरू झाला."
+          : "Blank Checklist PDF डाउनलोड सुरू झाला.",
+      );
+    } catch (e) {
+      console.error("PDF generation failed:", e);
+
+      setError(`PDF तयार करताना error आला: ${e?.message || "Unknown error"}`);
+    } finally {
+      source?.remove();
+
+      setPdfBusy(false);
     }
+  }
 
-    useEffect(() => {
-        if (!toast) return;
+  function exportTrashBackup() {
+    const backup = trash.map(({ id, ...item }) => ({
+      ...item,
 
-        const id = window.setTimeout(() => setToast(""), 3500);
+      deletedAt: item.deletedAt?.toDate?.().toISOString?.() || null,
+    }));
 
-        return () => window.clearTimeout(id);
-    }, [toast]);
+    const blob = new Blob([JSON.stringify(backup, null, 2)], {
+      type: "application/json;charset=utf-8",
+    });
 
-    return (
-        <div
-            className="page-shell"
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+
+    a.href = url;
+
+    a.download = "Props_Trash_Backup.json";
+
+    a.click();
+
+    URL.revokeObjectURL(url);
+  }
+
+  useEffect(() => {
+    if (!toast) return;
+
+    const id = window.setTimeout(() => setToast(""), 3500);
+
+    return () => window.clearTimeout(id);
+  }, [toast]);
+
+  return (
+    <div
+      className="page-shell"
+      style={{
+        width: "100%",
+        maxWidth: "100vw",
+        minWidth: 0,
+        overflowX: "clip",
+        boxSizing: "border-box",
+      }}
+    >
+      <div className="container">
+        <header className="page-header">
+          {/* <div className="eyebrow"><span className="eyebrow-dot" /> STAGE PRODUCTION CHECKLIST</div> */}
+
+          <div style={{ position: "relative", paddingRight: "44px" }}>
+            <h1>
+              फायनल चा फेरा <span>— प्रॉप्स</span>
+            </h1>
+
+            <button
+              type="button"
+              aria-label={isAdmin ? "Admin logout" : "Admin login"}
+              title={isAdmin ? "Admin logout" : "Admin login"}
+              onClick={() => {
+                if (isAdmin) {
+                  setIsAdmin(false);
+                  try {
+                    window.localStorage.removeItem("dramaPropsAdminLoggedIn");
+                  } catch (storageError) {
+                    console.error("Could not clear Admin Mode:", storageError);
+                  }
+
+                  setEditingPropId("");
+
+                  setToast("Admin mode बंद झाला.");
+                } else {
+                  setLoginOpen(true);
+
+                  setLoginError("");
+                }
+              }}
+              style={{
+                position: "absolute",
+
+                top: "0",
+
+                right: "0",
+
+                width: "36px",
+
+                height: "36px",
+
+                display: "inline-flex",
+
+                alignItems: "center",
+
+                justifyContent: "center",
+
+                border: "1px solid #d7deea",
+
+                borderRadius: "10px",
+
+                background: "#fff",
+
+                color: "#245be8",
+
+                cursor: "pointer",
+              }}
+            >
+              {isAdmin ? <LogOut size={18} /> : <LogIn size={18} />}
+            </button>
+          </div>
+
+          <div className="updated">
+            Last Updated At <span className="live-dot" />
+              
+            {formatDate(lastUpdated)}
+
+            {lastUpdatedDevice && (
+              <span className="updated-device">
+                {" · " + lastUpdatedDevice.split(" · ").pop()}
+              </span>
+            )}
+          </div>
+        </header>
+        {isAdmin && (
+          <section
+            aria-label="Live Visitors"
             style={{
-                width: "100%",
-                maxWidth: "100vw",
-                minWidth: 0,
-                overflowX: "clip",
-                boxSizing: "border-box",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "12px",
+              margin: "0 0 16px",
+              padding: "14px 16px",
+              border: "1px solid #dce5f1",
+              borderRadius: "14px",
+              background: "#fff",
+              boxShadow: "0 2px 8px rgba(20, 40, 70, 0.04)",
             }}
-        >
-            <div className="container">
-                <header className="page-header">
-                    {/* <div className="eyebrow"><span className="eyebrow-dot" /> STAGE PRODUCTION CHECKLIST</div> */}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+              }}
+            >
+              <Users size={21} color="#16a34a" />
+              <div>
+                <div
+                  style={{
+                    fontWeight: 700,
+                    color: "#243047",
+                  }}
+                >
+                  Live Visitors
+                </div>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "#64748b",
+                  }}
+                >
+                  Active in the last 90 seconds
+                </div>
+              </div>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  background: "#16a34a",
+                  boxShadow: "0 0 0 4px rgba(22,163,74,.12)",
+                }}
+              />
+              <strong
+                style={{
+                  fontSize: "28px",
+                  lineHeight: 1,
+                  color: "#15803d",
+                }}
+              >
+                {liveVisitorCount}
+              </strong>
+            </div>
+          </section>
+        )}
 
-                    <div style={{ position: "relative", paddingRight: "44px" }}>
-                        <h1>
-                            फायनल चा फेरा <span>— प्रॉप्स</span>
-                        </h1>
+        {error && (
+          <div className="alert error-alert">
+            <AlertTriangle size={18} />
 
-                        <button
-                            type="button"
-                            aria-label={
-                                isAdmin ? "Admin logout" : "Admin login"
-                            }
-                            title={isAdmin ? "Admin logout" : "Admin login"}
-                            onClick={() => {
-                                if (isAdmin) {
-                                    setIsAdmin(false);
-                                    try {
-                                        window.localStorage.removeItem(
-                                            "dramaPropsAdminLoggedIn",
-                                        );
-                                    } catch (storageError) {
-                                        console.error(
-                                            "Could not clear Admin Mode:",
-                                            storageError,
-                                        );
-                                    }
+            <span>{error}</span>
 
-                                    setEditingPropId("");
+            <button aria-label="Dismiss error" onClick={() => setError("")}>
+              <X size={17} />
+            </button>
+          </div>
+        )}
 
-                                    setToast("Admin mode बंद झाला.");
-                                } else {
-                                    setLoginOpen(true);
+        {toast && <div className="toast">{toast}</div>}
 
-                                    setLoginError("");
-                                }
-                            }}
-                            style={{
-                                position: "absolute",
+        <StructureManager
+          hasActs={acts.length > 0}
+          disabled={loading || !firebaseConfigured}
+          selectedAct={selectedAct}
+          onCreateAct={createAct}
+          onCreateEntry={createEntry}
+        />
 
-                                top: "0",
+        {!search.trim() && !selectedPerson && (
+          <section className="tabs-card">
+            <div className="act-tabs" role="tablist" aria-label="अंक निवडा">
+              {acts.map((act) => (
+                <button
+                  key={act}
+                  className={`act-tab ${selectedAct === act ? "active" : ""}`}
+                  onClick={() => {
+                    setSelectedAct(act);
 
-                                right: "0",
+                    const first = sections.find((s) => getAct(s.id) === act);
 
-                                width: "36px",
+                    if (first) setSelectedSection(first.id);
+                  }}
+                >
+                  अंक {act}
+                </button>
+              ))}
 
-                                height: "36px",
+              {!acts.length && (
+                <span className="muted empty-tabs">अंक उपलब्ध नाहीत</span>
+              )}
+            </div>
 
-                                display: "inline-flex",
+            <div
+              className="entry-tabs"
+              role="tablist"
+              aria-label="प्रवेश निवडा"
+            >
+              {actSections.map((section, index) => (
+                <button
+                  key={section.id}
+                  className={`entry-tab ${selectedSection === section.id ? "active" : ""}`}
+                  onClick={() => setSelectedSection(section.id)}
+                >
+                  प्रवेश {index + 1}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
-                                alignItems: "center",
-
-                                justifyContent: "center",
-
-                                border: "1px solid #d7deea",
-
-                                borderRadius: "10px",
-
-                                background: "#fff",
-
-                                color: "#245be8",
-
-                                cursor: "pointer",
-                            }}
-                        >
-                            {isAdmin ? (
-                                <LogOut size={18} />
-                            ) : (
-                                <LogIn size={18} />
-                            )}
-                        </button>
-                    </div>
-
-                    <div className="updated">
-                        <span className="live-dot" />
-
-                        {formatDate(lastUpdated)}
-
-                        {lastUpdatedDevice && (
-                            <span className="updated-device">
-                                {" · " + lastUpdatedDevice.split(" · ").pop()}
-                            </span>
-                        )}
-                    </div>
-                </header>
-                {isAdmin && (
-                    <section
-                        aria-label="Live Visitors"
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            gap: "12px",
-                            margin: "0 0 16px",
-                            padding: "14px 16px",
-                            border: "1px solid #dce5f1",
-                            borderRadius: "14px",
-                            background: "#fff",
-                            boxShadow: "0 2px 8px rgba(20, 40, 70, 0.04)",
-                        }}
-                    >
-                        <div
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "10px",
-                            }}
-                        >
-                            <Users size={21} color="#16a34a" />
-                            <div>
-                                <div
-                                    style={{
-                                        fontWeight: 700,
-                                        color: "#243047",
-                                    }}
-                                >
-                                    Live Visitors
-                                </div>
-                                <div
-                                    style={{
-                                        fontSize: "12px",
-                                        color: "#64748b",
-                                    }}
-                                >
-                                    Active in the last 90 seconds
-                                </div>
-                            </div>
-                        </div>
-                        <div
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "8px",
-                            }}
-                        >
-                            <span
-                                aria-hidden="true"
-                                style={{
-                                    width: "8px",
-                                    height: "8px",
-                                    borderRadius: "50%",
-                                    background: "#16a34a",
-                                    boxShadow: "0 0 0 4px rgba(22,163,74,.12)",
-                                }}
-                            />
-                            <strong
-                                style={{
-                                    fontSize: "28px",
-                                    lineHeight: 1,
-                                    color: "#15803d",
-                                }}
-                            >
-                                {liveVisitorCount}
-                            </strong>
-                        </div>
-                    </section>
-                )}
-
-                {error && (
-                    <div className="alert error-alert">
-                        <AlertTriangle size={18} />
-
-                        <span>{error}</span>
-
-                        <button
-                            aria-label="Dismiss error"
-                            onClick={() => setError("")}
-                        >
-                            <X size={17} />
-                        </button>
-                    </div>
-                )}
-
-                {toast && <div className="toast">{toast}</div>}
-
-                <StructureManager
-                    hasActs={acts.length > 0}
-                    disabled={loading || !firebaseConfigured}
-                    selectedAct={selectedAct}
-                    onCreateAct={createAct}
-                    onCreateEntry={createEntry}
-                />
-
-                {!search.trim() && !selectedPerson && (
-                    <section className="tabs-card">
-                        <div
-                            className="act-tabs"
-                            role="tablist"
-                            aria-label="अंक निवडा"
-                        >
-                            {acts.map((act) => (
-                                <button
-                                    key={act}
-                                    className={`act-tab ${selectedAct === act ? "active" : ""}`}
-                                    onClick={() => {
-                                        setSelectedAct(act);
-
-                                        const first = sections.find(
-                                            (s) => getAct(s.id) === act,
-                                        );
-
-                                        if (first) setSelectedSection(first.id);
-                                    }}
-                                >
-                                    अंक {act}
-                                </button>
-                            ))}
-
-                            {!acts.length && (
-                                <span className="muted empty-tabs">
-                                    अंक उपलब्ध नाहीत
-                                </span>
-                            )}
-                        </div>
-
-                        <div
-                            className="entry-tabs"
-                            role="tablist"
-                            aria-label="प्रवेश निवडा"
-                        >
-                            {actSections.map((section, index) => (
-                                <button
-                                    key={section.id}
-                                    className={`entry-tab ${selectedSection === section.id ? "active" : ""}`}
-                                    onClick={() =>
-                                        setSelectedSection(section.id)
-                                    }
-                                >
-                                    प्रवेश {index + 1}
-                                </button>
-                            ))}
-                        </div>
-                    </section>
-                )}
-
-                <style>{`
+        <style>{`
                     .props-toolbar-filters {
                         display: grid !important;
                         grid-template-columns: minmax(0, 1fr) minmax(210px, 0.85fr) auto;
@@ -2163,646 +2182,575 @@ export default function App() {
                         }
                     }
                 `}</style>
-                <div
-                    className={`toolbar props-toolbar-filters ${search.trim() ? "is-searching" : ""}`}
-                >
-                    <label className="search-box">
-                        <Search size={19} />
-                        <input
-                            type="search"
-                            value={search}
-                            onChange={(e) => {
-                                const value = e.target.value;
-                                setSearch(value);
-                                if (value.trim()) setSelectedPerson("");
-                            }}
-                            placeholder="प्रॉपचे नाव शोधा..."
-                            autoComplete="off"
-                        />
-                        {search && (
-                            <button
-                                type="button"
-                                aria-label="शोध काढा"
-                                onClick={() => setSearch("")}
-                            >
-                                <X size={16} />
-                            </button>
-                        )}
-                    </label>
+        <div
+          className={`toolbar props-toolbar-filters ${search.trim() ? "is-searching" : ""}`}
+        >
+          <label className="search-box">
+            <Search size={19} />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => {
+                const value = e.target.value;
+                setSearch(value);
+                if (value.trim()) setSelectedPerson("");
+              }}
+              placeholder="प्रॉपचे नाव शोधा..."
+              autoComplete="off"
+            />
+            {search && (
+              <button
+                type="button"
+                aria-label="शोध काढा"
+                onClick={() => setSearch("")}
+              >
+                <X size={16} />
+              </button>
+            )}
+          </label>
 
-                    {!search.trim() && (
-                        <div className="props-person-filter">
-                            <Users size={18} style={{ flex: "0 0 auto" }} />
-                            <select
-                                aria-label="व्यक्तीनुसार प्रॉप्स निवडा"
-                                value={selectedPerson}
-                                onChange={(e) =>
-                                    setSelectedPerson(e.target.value)
-                                }
-                            >
-                                <option value="">
-                                    {assignedPeople.length
-                                        ? "यक्तीनुसार प्रॉप्स बघा"
-                                        : "अजून व्यक्तीची नावे नाहीत"}
-                                </option>
-                                {assignedPeople.map((person) => (
-                                    <option key={person} value={person}>
-                                        {person}
-                                    </option>
-                                ))}
-                            </select>
-                            {selectedPerson && (
-                                <button
-                                    type="button"
-                                    aria-label="व्यक्तीची निवड काढा"
-                                    onClick={() => setSelectedPerson("")}
-                                    style={{
-                                        flex: "0 0 auto",
-                                        border: 0,
-                                        background: "transparent",
-                                        color: "#64748b",
-                                        cursor: "pointer",
-                                        padding: 2,
-                                    }}
-                                >
-                                    <X size={16} />
-                                </button>
-                            )}
-                        </div>
+          {!search.trim() && (
+            <div className="props-person-filter">
+              <Users size={18} style={{ flex: "0 0 auto" }} />
+              <select
+                aria-label="व्यक्तीनुसार प्रॉप्स निवडा"
+                value={selectedPerson}
+                onChange={(e) => setSelectedPerson(e.target.value)}
+              >
+                <option value="">
+                  {assignedPeople.length
+                    ? "यक्तीनुसार प्रॉप्स बघा"
+                    : "अजून व्यक्तीची नावे नाहीत"}
+                </option>
+                {assignedPeople.map((person) => (
+                  <option key={person} value={person}>
+                    {person}
+                  </option>
+                ))}
+              </select>
+              {selectedPerson && (
+                <button
+                  type="button"
+                  aria-label="व्यक्तीची निवड काढा"
+                  onClick={() => setSelectedPerson("")}
+                  style={{
+                    flex: "0 0 auto",
+                    border: 0,
+                    background: "transparent",
+                    color: "#64748b",
+                    cursor: "pointer",
+                    padding: 2,
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="pdf-wrap">
+            <button
+              className="pdf-button"
+              disabled={pdfBusy || loading || !sections.length}
+              onClick={() => setPdfMenu((v) => !v)}
+            >
+              {pdfBusy ? (
+                <LoaderCircle className="spin" size={18} />
+              ) : (
+                <Download size={18} />
+              )}
+              {pdfBusy ? "PDF तयार होत आहे..." : "PDF डाउनलोड"}
+            </button>
+            {pdfMenu && (
+              <div className="pdf-menu">
+                <button onClick={() => downloadPdf(false)}>
+                  १. प्रवेश नुसारे props
+                </button>
+                <button onClick={() => downloadPdf(false, true)}>
+                  २. अकत्रित Props
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {isAdmin && (
+          <section
+            aria-label="User editing permission"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "12px",
+              flexWrap: "wrap",
+              margin: "0 0 16px",
+              padding: "12px 14px",
+              border: "1px solid #dce5f1",
+              borderRadius: "12px",
+              background: "#fff",
+            }}
+          >
+            <div style={{ minWidth: 0, flex: "1 1 220px" }}>
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "#64748b",
+                  marginTop: "3px",
+                }}
+              ></div>
+            </div>
+            <label
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                flex: "0 0 auto",
+                fontWeight: 700,
+                color: allowUsersEditAssignedNames ? "#15803d" : "#64748b",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={allowUsersEditAssignedNames}
+                onChange={(e) => setUserNameEditingPermission(e.target.checked)}
+              />
+              {allowUsersEditAssignedNames
+                ? "ON — Editing allowed"
+                : "OFF — Locked"}
+            </label>
+          </section>
+        )}
+
+        {loading ? (
+          <div className="state-card">
+            <LoaderCircle className="spin" size={25} />
+
+            <strong>Props load होत आहेत...</strong>
+
+            {/* <span>Firestore शी connection होत आहे.</span> */}
+          </div>
+        ) : !firebaseConfigured ? (
+          <div className="state-card">
+            <FileText size={28} />
+
+            <strong>Firebase configuration आवश्यक आहे</strong>
+
+            <span>README.md मधील setup steps पूर्ण करा.</span>
+          </div>
+        ) : !sections.length ? (
+          <div className="state-card">
+            <FileText size={28} />
+
+            <strong>अजून कोणतेही अंक किंवा प्रवेश तयार केलेले नाहीत</strong>
+
+            <span>
+              वरच्या “नवीन अंक तयार करा” बटणावर क्लिक करून सुरुवात करा.
+            </span>
+          </div>
+        ) : search.trim() || selectedPerson ? (
+          <section className="section-card global-search-results">
+            <div className="section-heading" style={{ paddingBottom: "14px" }}>
+              <div>
+                <span className="section-kicker">
+                  {selectedPerson
+                    ? `व्यक्ती: ${selectedPerson}`
+                    : "प्रॉपच्या नावानुसार सर्व अंक / प्रवेशांमध्ये शोध"}
+                </span>
+                <h2
+                  style={{
+                    margin: "4px 0 0",
+                    fontSize: "18px",
+                  }}
+                >
+                  {search.trim() ? `प्रॉप: “${search.trim()}” · ` : ""}
+                  {globalSearchResults.length} नोंदी
+                </h2>
+              </div>
+            </div>
+
+            {!globalSearchResults.length ? (
+              <div className="empty-state">
+                निवडलेल्या व्यक्तीसाठी किंवा प्रॉपच्या नावासाठी कोणत्याही अंक /
+                प्रवेशात नोंद सापडली नाही.
+              </div>
+            ) : (
+              <div className="items-list">
+                {globalSearchResults.map(({ section, itemId, item }, index) => (
+                  <div
+                    className={`prop-row ${item.checked ? "is-checked" : ""}`}
+                    key={`${section.id}:${itemId}`}
+                    style={{
+                      flexWrap: "wrap",
+                      rowGap: "8px",
+                      paddingTop: "12px",
+                      paddingBottom: "12px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        flex: "1 1 100%",
+                        minWidth: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <span
+                        className="section-kicker"
+                        style={{
+                          color: "#245be8",
+                          fontWeight: 700,
+                        }}
+                      >
+                        अंक {getAct(section.id)} · प्रवेश{" "}
+                        {getPravesh(section.id)}
+                      </span>
+                      <span
+                        style={{
+                          color: "#94a3b8",
+                          fontSize: "12px",
+                        }}
+                      >
+                        #{index + 1}
+                      </span>
+                    </div>
+
+                    <span
+                      className="checkbox-tooltip-wrap"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        position: "relative",
+                      }}
+                    >
+                      {isPropLockedForUser(section.id, itemId) && (
+                        <button
+                          type="button"
+                          aria-label="व्यक्तीचे नाव आधी लिहा"
+                          title="व्यक्तीचे नाव आधी लिहा"
+                          onClick={() =>
+                            window.alert(
+                              item.checked
+                                ? "हा प्रॉप आधीच checked आहे. बदलण्यासाठी Admin शी संपर्क करा."
+                                : "आधी कोणाकडे आहे त्याचे नाव लिहा मग box चेक करा",
+                            )
+                          }
+                          style={{
+                            position: "absolute",
+                            inset: 0,
+                            zIndex: 1,
+                            width: "100%",
+                            height: "100%",
+                            padding: 0,
+                            border: 0,
+                            background: "transparent",
+                            cursor: "not-allowed",
+                          }}
+                        />
+                      )}
+                      <input
+                        type="checkbox"
+                        checked={!!item.checked}
+                        disabled={isPropLockedForUser(section.id, itemId)}
+                        onChange={(e) =>
+                          toggleChecked(section.id, itemId, e.target.checked)
+                        }
+                        aria-label={item.name}
+                      />
+                    </span>
+
+                    <span className="item-name" style={{ flex: "1 1 100px" }}>
+                      {item.name}
+                    </span>
+
+                    {isAdmin && (
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          gap: "4px",
+                          flex: "0 0 auto",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          title="प्रॉप edit करा"
+                          aria-label="प्रॉप edit करा"
+                          onClick={() => {
+                            setSelectedAct(getAct(section.id));
+                            setSelectedSection(section.id);
+                            setEditingPropId(itemId);
+                            setEditingPropName(item.name || "");
+                            setSearch("");
+                          }}
+                          style={adminIconStyle}
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          title="प्रॉप delete करा"
+                          aria-label="प्रॉप delete करा"
+                          onClick={() => deleteProp(section, itemId, item)}
+                          style={{
+                            ...adminIconStyle,
+                            color: "#dc2626",
+                          }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     )}
 
-                    <div className="pdf-wrap">
-                        <button
-                            className="pdf-button"
-                            disabled={pdfBusy || loading || !sections.length}
-                            onClick={() => setPdfMenu((v) => !v)}
-                        >
-                            {pdfBusy ? (
-                                <LoaderCircle className="spin" size={18} />
-                            ) : (
-                                <Download size={18} />
-                            )}
-                            {pdfBusy ? "PDF तयार होत आहे..." : "PDF डाउनलोड"}
-                        </button>
-                        {pdfMenu && (
-                            <div className="pdf-menu">
-                                <button onClick={() => downloadPdf(false)}>
-                                    १. प्रवेश नुसारे props
-                                </button>
-                                <button
-                                    onClick={() => downloadPdf(false, true)}
-                                >
-                                    २. अकत्रित Props
-                                </button>
-                            </div>
-                        )}
-                    </div>
+                    <textarea
+                      key={`search-${section.id}-${itemId}-${item.assignedTo || ""}`}
+                      aria-label={`${item.name} कोणाकडे आहे`}
+                      title="हा प्रॉप कोणाकडे आहे?"
+                      rows={1}
+                      defaultValue={item.assignedTo || ""}
+                      placeholder="कोणाकडे आहे?"
+                      readOnly={
+                        !isAdmin &&
+                        !!item.checked &&
+                        !allowUsersEditAssignedNames
+                      }
+                      onBlur={(e) => {
+                        if (
+                          !isAdmin &&
+                          item.checked &&
+                          !allowUsersEditAssignedNames
+                        )
+                          return;
+                        updateAssignedTo(
+                          section.id,
+                          itemId,
+                          e.target.value.trim(),
+                          e.target,
+                        );
+                      }}
+                      style={{
+                        width: "min(220px, 45%)",
+                        background:
+                          !isAdmin &&
+                          item.checked &&
+                          !allowUsersEditAssignedNames
+                            ? "#f1f5f9"
+                            : "#fff",
+                        cursor:
+                          !isAdmin &&
+                          item.checked &&
+                          !allowUsersEditAssignedNames
+                            ? "not-allowed"
+                            : "text",
+                        minWidth: "120px",
+                        minHeight: "38px",
+                        marginLeft: "auto",
+                        padding: "8px 10px",
+                        border: "1px solid #d7deea",
+                        borderRadius: "9px",
+                        color: "#243047",
+                        font: "inherit",
+                        fontSize: "14px",
+                        resize: "vertical",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        ) : currentSection ? (
+          <section className="section-card">
+            <div className="section-heading">
+              <div style={{ flex: "1 1 auto", minWidth: 0 }}>
+                <span className="section-kicker">
+                  अंक {getAct(currentSection.id)} · प्रवेश{" "}
+                  {getPravesh(currentSection.id)}
+                </span>
+
+                <div className="section-title-row">
+                  <h2 style={{ margin: 0 }}>{currentSection.title}</h2>
                 </div>
 
-                {isAdmin && (
-                    <section
-                        aria-label="User editing permission"
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            gap: "12px",
-                            flexWrap: "wrap",
-                            margin: "0 0 16px",
-                            padding: "12px 14px",
-                            border: "1px solid #dce5f1",
-                            borderRadius: "12px",
-                            background: "#fff",
+                <div
+                  className="scene-entry-name-row"
+                  style={{
+                    display: "flex",
+
+                    alignItems: "center",
+
+                    gap: "8px",
+
+                    width: "100%",
+
+                    minWidth: 0,
+
+                    marginTop: "8px",
+                  }}
+                >
+                  {sceneEntryNameEditing ? (
+                    <>
+                      <input
+                        key={`${currentSection.id}-scene-name`}
+                        type="text"
+                        aria-label="दृश्य / प्रवेशाचे नाव"
+                        value={sceneEntryNameDraft}
+                        onChange={(e) => setSceneEntryNameDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+
+                            saveSceneEntryName();
+                          }
                         }}
-                    >
-                        <div style={{ minWidth: 0, flex: "1 1 220px" }}>
-                            <div
-                                style={{
-                                    fontSize: "12px",
-                                    color: "#64748b",
-                                    marginTop: "3px",
-                                }}
-                            ></div>
-                        </div>
-                        <label
-                            style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "8px",
-                                flex: "0 0 auto",
-                                fontWeight: 700,
-                                color: allowUsersEditAssignedNames
-                                    ? "#15803d"
-                                    : "#64748b",
-                                cursor: "pointer",
-                            }}
-                        >
-                            <input
-                                type="checkbox"
-                                checked={allowUsersEditAssignedNames}
-                                onChange={(e) =>
-                                    setUserNameEditingPermission(
-                                        e.target.checked,
-                                    )
-                                }
-                            />
-                            {allowUsersEditAssignedNames
-                                ? "ON — Editing allowed"
-                                : "OFF — Locked"}
-                        </label>
-                    </section>
-                )}
+                        placeholder="दृश्य / प्रवेशाचे नाव..."
+                        disabled={sceneEntryNameSaving}
+                        style={{
+                          flex: "1 1 auto",
 
-                {loading ? (
-                    <div className="state-card">
-                        <LoaderCircle className="spin" size={25} />
+                          minWidth: 0,
 
-                        <strong>Props load होत आहेत...</strong>
+                          maxWidth: "360px",
 
-                        {/* <span>Firestore शी connection होत आहे.</span> */}
-                    </div>
-                ) : !firebaseConfigured ? (
-                    <div className="state-card">
-                        <FileText size={28} />
+                          height: "38px",
 
-                        <strong>Firebase configuration आवश्यक आहे</strong>
+                          padding: "7px 10px",
 
-                        <span>README.md मधील setup steps पूर्ण करा.</span>
-                    </div>
-                ) : !sections.length ? (
-                    <div className="state-card">
-                        <FileText size={28} />
+                          border: "1px solid #d7deea",
 
-                        <strong>
-                            अजून कोणतेही अंक किंवा प्रवेश तयार केलेले नाहीत
-                        </strong>
+                          borderRadius: "9px",
 
-                        <span>
-                            वरच्या “नवीन अंक तयार करा” बटणावर क्लिक करून सुरुवात
-                            करा.
-                        </span>
-                    </div>
-                ) : search.trim() || selectedPerson ? (
-                    <section className="section-card global-search-results">
-                        <div
-                            className="section-heading"
-                            style={{ paddingBottom: "14px" }}
-                        >
-                            <div>
-                                <span className="section-kicker">
-                                    {selectedPerson
-                                        ? `व्यक्ती: ${selectedPerson}`
-                                        : "प्रॉपच्या नावानुसार सर्व अंक / प्रवेशांमध्ये शोध"}
-                                </span>
-                                <h2
-                                    style={{
-                                        margin: "4px 0 0",
-                                        fontSize: "18px",
-                                    }}
-                                >
-                                    {search.trim()
-                                        ? `प्रॉप: “${search.trim()}” · `
-                                        : ""}
-                                    {globalSearchResults.length} नोंदी
-                                </h2>
-                            </div>
-                        </div>
+                          background: "#fff",
 
-                        {!globalSearchResults.length ? (
-                            <div className="empty-state">
-                                निवडलेल्या व्यक्तीसाठी किंवा प्रॉपच्या नावासाठी
-                                कोणत्याही अंक / प्रवेशात नोंद सापडली नाही.
-                            </div>
+                          color: "#243047",
+
+                          font: "inherit",
+
+                          fontSize: "13px",
+
+                          boxSizing: "border-box",
+                        }}
+                      />
+
+                      <button
+                        type="button"
+                        aria-label="दृश्य / प्रवेशाचे नाव save करा"
+                        title="नाव save करा"
+                        onClick={saveSceneEntryName}
+                        disabled={
+                          sceneEntryNameSaving || !sceneEntryNameDraft.trim()
+                        }
+                        style={{
+                          flex: "0 0 36px",
+
+                          width: "36px",
+
+                          height: "36px",
+
+                          display: "inline-flex",
+
+                          alignItems: "center",
+
+                          justifyContent: "center",
+
+                          border: "1px solid #16a34a",
+
+                          borderRadius: "9px",
+
+                          background: "#16a34a",
+
+                          color: "#fff",
+
+                          cursor: sceneEntryNameSaving ? "wait" : "pointer",
+
+                          opacity:
+                            sceneEntryNameSaving || !sceneEntryNameDraft.trim()
+                              ? 0.6
+                              : 1,
+                        }}
+                      >
+                        {sceneEntryNameSaving ? (
+                          <LoaderCircle className="spin" size={17} />
                         ) : (
-                            <div className="items-list">
-                                {globalSearchResults.map(
-                                    ({ section, itemId, item }, index) => (
-                                        <div
-                                            className={`prop-row ${item.checked ? "is-checked" : ""}`}
-                                            key={`${section.id}:${itemId}`}
-                                            style={{
-                                                flexWrap: "wrap",
-                                                rowGap: "8px",
-                                                paddingTop: "12px",
-                                                paddingBottom: "12px",
-                                            }}
-                                        >
-                                            <div
-                                                style={{
-                                                    flex: "1 1 100%",
-                                                    minWidth: 0,
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    gap: "8px",
-                                                    flexWrap: "wrap",
-                                                }}
-                                            >
-                                                <span
-                                                    className="section-kicker"
-                                                    style={{
-                                                        color: "#245be8",
-                                                        fontWeight: 700,
-                                                    }}
-                                                >
-                                                    अंक {getAct(section.id)} ·
-                                                    प्रवेश{" "}
-                                                    {getPravesh(section.id)}
-                                                </span>
-                                                <span
-                                                    style={{
-                                                        color: "#94a3b8",
-                                                        fontSize: "12px",
-                                                    }}
-                                                >
-                                                    #{index + 1}
-                                                </span>
-                                            </div>
-
-                                            <span
-                                                className="checkbox-tooltip-wrap"
-                                                style={{
-                                                    display: "inline-flex",
-                                                    alignItems: "center",
-                                                    position: "relative",
-                                                }}
-                                            >
-                                                {isPropLockedForUser(
-                                                    section.id,
-                                                    itemId,
-                                                ) && (
-                                                    <button
-                                                        type="button"
-                                                        aria-label="व्यक्तीचे नाव आधी लिहा"
-                                                        title="व्यक्तीचे नाव आधी लिहा"
-                                                        onClick={() =>
-                                                            window.alert(
-                                                                item.checked
-                                                                    ? "हा प्रॉप आधीच checked आहे. बदलण्यासाठी Admin शी संपर्क करा."
-                                                                    : "आधी कोणाकडे आहे त्याचे नाव लिहा मग box चेक करा",
-                                                            )
-                                                        }
-                                                        style={{
-                                                            position:
-                                                                "absolute",
-                                                            inset: 0,
-                                                            zIndex: 1,
-                                                            width: "100%",
-                                                            height: "100%",
-                                                            padding: 0,
-                                                            border: 0,
-                                                            background:
-                                                                "transparent",
-                                                            cursor: "not-allowed",
-                                                        }}
-                                                    />
-                                                )}
-                                                <input
-                                                    type="checkbox"
-                                                    checked={!!item.checked}
-                                                    disabled={isPropLockedForUser(
-                                                        section.id,
-                                                        itemId,
-                                                    )}
-                                                    onChange={(e) =>
-                                                        toggleChecked(
-                                                            section.id,
-                                                            itemId,
-                                                            e.target.checked,
-                                                        )
-                                                    }
-                                                    aria-label={item.name}
-                                                />
-                                            </span>
-
-                                            <span
-                                                className="item-name"
-                                                style={{ flex: "1 1 100px" }}
-                                            >
-                                                {item.name}
-                                            </span>
-
-                                            {isAdmin && (
-                                                <div
-                                                    style={{
-                                                        display: "inline-flex",
-                                                        gap: "4px",
-                                                        flex: "0 0 auto",
-                                                    }}
-                                                >
-                                                    <button
-                                                        type="button"
-                                                        title="प्रॉप edit करा"
-                                                        aria-label="प्रॉप edit करा"
-                                                        onClick={() => {
-                                                            setSelectedAct(
-                                                                getAct(
-                                                                    section.id,
-                                                                ),
-                                                            );
-                                                            setSelectedSection(
-                                                                section.id,
-                                                            );
-                                                            setEditingPropId(
-                                                                itemId,
-                                                            );
-                                                            setEditingPropName(
-                                                                item.name || "",
-                                                            );
-                                                            setSearch("");
-                                                        }}
-                                                        style={adminIconStyle}
-                                                    >
-                                                        <Pencil size={16} />
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        title="प्रॉप delete करा"
-                                                        aria-label="प्रॉप delete करा"
-                                                        onClick={() =>
-                                                            deleteProp(
-                                                                section,
-                                                                itemId,
-                                                                item,
-                                                            )
-                                                        }
-                                                        style={{
-                                                            ...adminIconStyle,
-                                                            color: "#dc2626",
-                                                        }}
-                                                    >
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                </div>
-                                            )}
-
-                                            <textarea
-                                                key={`search-${section.id}-${itemId}-${item.assignedTo || ""}`}
-                                                aria-label={`${item.name} कोणाकडे आहे`}
-                                                title="हा प्रॉप कोणाकडे आहे?"
-                                                rows={1}
-                                                defaultValue={
-                                                    item.assignedTo || ""
-                                                }
-                                                placeholder="कोणाकडे आहे?"
-                                                readOnly={
-                                                    !isAdmin &&
-                                                    !!item.checked &&
-                                                    !allowUsersEditAssignedNames
-                                                }
-                                                onBlur={(e) => {
-                                                    if (
-                                                        !isAdmin &&
-                                                        item.checked &&
-                                                        !allowUsersEditAssignedNames
-                                                    )
-                                                        return;
-                                                    updateAssignedTo(
-                                                        section.id,
-                                                        itemId,
-                                                        e.target.value.trim(),
-                                                    );
-                                                }}
-                                                style={{
-                                                    width: "min(220px, 45%)",
-                                                    background:
-                                                        !isAdmin &&
-                                                        item.checked &&
-                                                        !allowUsersEditAssignedNames
-                                                            ? "#f1f5f9"
-                                                            : "#fff",
-                                                    cursor:
-                                                        !isAdmin &&
-                                                        item.checked &&
-                                                        !allowUsersEditAssignedNames
-                                                            ? "not-allowed"
-                                                            : "text",
-                                                    minWidth: "120px",
-                                                    minHeight: "38px",
-                                                    marginLeft: "auto",
-                                                    padding: "8px 10px",
-                                                    border: "1px solid #d7deea",
-                                                    borderRadius: "9px",
-                                                    color: "#243047",
-                                                    font: "inherit",
-                                                    fontSize: "14px",
-                                                    resize: "vertical",
-                                                    boxSizing: "border-box",
-                                                }}
-                                            />
-                                        </div>
-                                    ),
-                                )}
-                            </div>
+                          <Check size={18} />
                         )}
-                    </section>
-                ) : currentSection ? (
-                    <section className="section-card">
-                        <div className="section-heading">
-                            <div style={{ flex: "1 1 auto", minWidth: 0 }}>
-                                <span className="section-kicker">
-                                    अंक {getAct(currentSection.id)} · प्रवेश{" "}
-                                    {getPravesh(currentSection.id)}
-                                </span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span
+                        title={savedSceneEntryName}
+                        style={{
+                          flex: "0 1 auto",
 
-                                <div className="section-title-row">
-                                    <h2 style={{ margin: 0 }}>
-                                        {currentSection.title}
-                                    </h2>
-                                </div>
+                          minWidth: 0,
 
-                                <div
-                                    className="scene-entry-name-row"
-                                    style={{
-                                        display: "flex",
+                          maxWidth: "calc(100% - 42px)",
 
-                                        alignItems: "center",
+                          whiteSpace: "normal",
 
-                                        gap: "8px",
+                          overflowWrap: "anywhere",
 
-                                        width: "100%",
+                          color: "#52627a",
 
-                                        minWidth: 0,
+                          fontSize: "13px",
 
-                                        marginTop: "8px",
-                                    }}
-                                >
-                                    {sceneEntryNameEditing ? (
-                                        <>
-                                            <input
-                                                key={`${currentSection.id}-scene-name`}
-                                                type="text"
-                                                aria-label="दृश्य / प्रवेशाचे नाव"
-                                                value={sceneEntryNameDraft}
-                                                onChange={(e) =>
-                                                    setSceneEntryNameDraft(
-                                                        e.target.value,
-                                                    )
-                                                }
-                                                onKeyDown={(e) => {
-                                                    if (e.key === "Enter") {
-                                                        e.preventDefault();
+                          fontWeight: 600,
+                        }}
+                      >
+                        {savedSceneEntryName}
+                      </span>
 
-                                                        saveSceneEntryName();
-                                                    }
-                                                }}
-                                                placeholder="दृश्य / प्रवेशाचे नाव..."
-                                                disabled={sceneEntryNameSaving}
-                                                style={{
-                                                    flex: "1 1 auto",
+                      <button
+                        type="button"
+                        aria-label="दृश्य / प्रवेशाचे नाव edit करा"
+                        title="नाव edit करा"
+                        onClick={() => {
+                          setSceneEntryNameDraft(savedSceneEntryName);
 
-                                                    minWidth: 0,
+                          setSceneEntryNameEditing(true);
+                        }}
+                        style={{
+                          flex: "0 0 34px",
 
-                                                    maxWidth: "360px",
+                          width: "34px",
 
-                                                    height: "38px",
+                          height: "34px",
 
-                                                    padding: "7px 10px",
+                          display: "inline-flex",
 
-                                                    border: "1px solid #d7deea",
+                          alignItems: "center",
 
-                                                    borderRadius: "9px",
+                          justifyContent: "center",
 
-                                                    background: "#fff",
+                          border: "1px solid #d7deea",
 
-                                                    color: "#243047",
+                          borderRadius: "9px",
 
-                                                    font: "inherit",
+                          background: "#fff",
 
-                                                    fontSize: "13px",
+                          color: "#245be8",
 
-                                                    boxSizing: "border-box",
-                                                }}
-                                            />
+                          cursor: "pointer",
+                        }}
+                      >
+                        <Pencil size={16} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
 
-                                            <button
-                                                type="button"
-                                                aria-label="दृश्य / प्रवेशाचे नाव save करा"
-                                                title="नाव save करा"
-                                                onClick={saveSceneEntryName}
-                                                disabled={
-                                                    sceneEntryNameSaving ||
-                                                    !sceneEntryNameDraft.trim()
-                                                }
-                                                style={{
-                                                    flex: "0 0 36px",
+              <div className="count-chip">
+                {checkedCount}
+                <span>/</span>
+                {currentItems.length} total
+              </div>
+            </div>
 
-                                                    width: "36px",
-
-                                                    height: "36px",
-
-                                                    display: "inline-flex",
-
-                                                    alignItems: "center",
-
-                                                    justifyContent: "center",
-
-                                                    border: "1px solid #16a34a",
-
-                                                    borderRadius: "9px",
-
-                                                    background: "#16a34a",
-
-                                                    color: "#fff",
-
-                                                    cursor: sceneEntryNameSaving
-                                                        ? "wait"
-                                                        : "pointer",
-
-                                                    opacity:
-                                                        sceneEntryNameSaving ||
-                                                        !sceneEntryNameDraft.trim()
-                                                            ? 0.6
-                                                            : 1,
-                                                }}
-                                            >
-                                                {sceneEntryNameSaving ? (
-                                                    <LoaderCircle
-                                                        className="spin"
-                                                        size={17}
-                                                    />
-                                                ) : (
-                                                    <Check size={18} />
-                                                )}
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <span
-                                                title={savedSceneEntryName}
-                                                style={{
-                                                    flex: "0 1 auto",
-
-                                                    minWidth: 0,
-
-                                                    maxWidth:
-                                                        "calc(100% - 42px)",
-
-                                                    whiteSpace: "normal",
-
-                                                    overflowWrap: "anywhere",
-
-                                                    color: "#52627a",
-
-                                                    fontSize: "13px",
-
-                                                    fontWeight: 600,
-                                                }}
-                                            >
-                                                {savedSceneEntryName}
-                                            </span>
-
-                                            <button
-                                                type="button"
-                                                aria-label="दृश्य / प्रवेशाचे नाव edit करा"
-                                                title="नाव edit करा"
-                                                onClick={() => {
-                                                    setSceneEntryNameDraft(
-                                                        savedSceneEntryName,
-                                                    );
-
-                                                    setSceneEntryNameEditing(
-                                                        true,
-                                                    );
-                                                }}
-                                                style={{
-                                                    flex: "0 0 34px",
-
-                                                    width: "34px",
-
-                                                    height: "34px",
-
-                                                    display: "inline-flex",
-
-                                                    alignItems: "center",
-
-                                                    justifyContent: "center",
-
-                                                    border: "1px solid #d7deea",
-
-                                                    borderRadius: "9px",
-
-                                                    background: "#fff",
-
-                                                    color: "#245be8",
-
-                                                    cursor: "pointer",
-                                                }}
-                                            >
-                                                <Pencil size={16} />
-                                            </button>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="count-chip">
-                                {checkedCount}
-                                <span>/</span>
-                                {currentItems.length} total
-                            </div>
-                        </div>
-
-                        {/* <div className="progress-area">
+            {/* <div className="progress-area">
 
               <div className="progress-label">
 
@@ -2826,743 +2774,680 @@ export default function App() {
 
             </div> */}
 
-                        <div className="items-list">
-                            {!filteredItems.length ? (
-                                <div className="empty-state">
-                                    {search
-                                        ? "या शोधासाठी प्रॉप सापडला नाही."
-                                        : "या प्रवेशासाठी अजून प्रॉप्स नाहीत."}
-                                </div>
-                            ) : (
-                                filteredItems.map(([itemId, item], index) => (
-                                    <div
-                                        className={`prop-row ${item.checked ? "is-checked" : ""}`}
-                                        key={itemId}
-                                    >
-                                        <span
-                                            className="checkbox-tooltip-wrap"
-                                            title={
-                                                isPropLockedForUser(
-                                                    currentSection.id,
-                                                    itemId,
-                                                )
-                                                    ? "आधी कोणाकडे आहे त्याचे नाव लिहा मग box चेक करा."
-                                                    : ""
-                                            }
-                                            style={{
-                                                display: "inline-flex",
-                                                alignItems: "center",
-                                                position: "relative",
-                                            }}
-                                        >
-                                            {isPropLockedForUser(
-                                                currentSection.id,
-                                                itemId,
-                                            ) && (
-                                                <button
-                                                    type="button"
-                                                    aria-label="व्यक्तीचे नाव आधी लिहा"
-                                                    title="व्यक्तीचे नाव आधी लिहा"
-                                                    onClick={() =>
-                                                        window.alert(
-                                                            item.checked
-                                                                ? "हा प्रॉप आधीच checked आहे. बदलण्यासाठी Admin शी संपर्क करा."
-                                                                : "आधी कोणाकडे आहे त्याचे नाव लिहा मग box चेक करा",
-                                                        )
-                                                    }
-                                                    style={{
-                                                        position: "absolute",
-                                                        inset: 0,
-                                                        zIndex: 1,
-                                                        width: "100%",
-                                                        height: "100%",
-                                                        padding: 0,
-                                                        border: 0,
-                                                        background:
-                                                            "transparent",
-                                                        cursor: "not-allowed",
-                                                    }}
-                                                />
-                                            )}
-                                            <input
-                                                type="checkbox"
-                                                checked={!!item.checked}
-                                                disabled={isPropLockedForUser(
-                                                    currentSection.id,
-                                                    itemId,
-                                                )}
-                                                onChange={(e) => {
-                                                    if (
-                                                        e.target.checked &&
-                                                        isPropLockedForUser(
-                                                            currentSection.id,
-                                                            itemId,
-                                                        )
-                                                    ) {
-                                                        setToast(
-                                                            "आधी कोणाकडे आहे त्याचे नाव लिहा मग box चेक करा.",
-                                                        );
-                                                        return;
-                                                    }
-
-                                                    toggleChecked(
-                                                        currentSection.id,
-                                                        itemId,
-                                                        e.target.checked,
-                                                    );
-                                                }}
-                                                aria-label={item.name}
-                                            />
-                                        </span>
-
-                                        <span className="item-number">
-                                            {index + 1}
-                                        </span>
-
-                                        {isAdmin && editingPropId === itemId ? (
-                                            <input
-                                                aria-label="प्रॉपचे नाव बदला"
-                                                value={editingPropName}
-                                                onChange={(e) =>
-                                                    setEditingPropName(
-                                                        e.target.value,
-                                                    )
-                                                }
-                                                onKeyDown={(e) => {
-                                                    if (e.key === "Enter") {
-                                                        e.preventDefault();
-
-                                                        updatePropName(
-                                                            currentSection.id,
-                                                            itemId,
-                                                            editingPropName,
-                                                        );
-                                                    }
-
-                                                    if (e.key === "Escape")
-                                                        setEditingPropId("");
-                                                }}
-                                                style={{
-                                                    flex: "1 1 auto",
-
-                                                    minWidth: 0,
-
-                                                    width: "100px",
-
-                                                    padding: "7px 8px",
-
-                                                    border: "1px solid #9bb5f7",
-
-                                                    borderRadius: "8px",
-
-                                                    font: "inherit",
-                                                }}
-                                            />
-                                        ) : (
-                                            <span className="item-name">
-                                                {item.name}
-                                            </span>
-                                        )}
-
-                                        {isAdmin && (
-                                            <div
-                                                style={{
-                                                    display: "inline-flex",
-                                                    gap: "4px",
-                                                    flex: "0 0 auto",
-                                                }}
-                                            >
-                                                {editingPropId === itemId ? (
-                                                    <>
-                                                        <button
-                                                            type="button"
-                                                            title="नाव save करा"
-                                                            aria-label="नाव save करा"
-                                                            onClick={() =>
-                                                                updatePropName(
-                                                                    currentSection.id,
-                                                                    itemId,
-                                                                    editingPropName,
-                                                                )
-                                                            }
-                                                            style={
-                                                                adminIconStyle
-                                                            }
-                                                        >
-                                                            <Save size={16} />
-                                                        </button>
-
-                                                        <button
-                                                            type="button"
-                                                            title="रद्द करा"
-                                                            aria-label="रद्द करा"
-                                                            onClick={() =>
-                                                                setEditingPropId(
-                                                                    "",
-                                                                )
-                                                            }
-                                                            style={
-                                                                adminIconStyle
-                                                            }
-                                                        >
-                                                            <X size={16} />
-                                                        </button>
-                                                    </>
-                                                ) : (
-                                                    <button
-                                                        type="button"
-                                                        title="प्रॉप edit करा"
-                                                        aria-label="प्रॉप edit करा"
-                                                        onClick={() => {
-                                                            setEditingPropId(
-                                                                itemId,
-                                                            );
-
-                                                            setEditingPropName(
-                                                                item.name || "",
-                                                            );
-                                                        }}
-                                                        style={adminIconStyle}
-                                                    >
-                                                        <Pencil size={16} />
-                                                    </button>
-                                                )}
-
-                                                <button
-                                                    type="button"
-                                                    title="प्रॉप delete करा"
-                                                    aria-label="प्रॉप delete करा"
-                                                    onClick={() =>
-                                                        deleteProp(
-                                                            currentSection,
-                                                            itemId,
-                                                            item,
-                                                        )
-                                                    }
-                                                    style={{
-                                                        ...adminIconStyle,
-                                                        color: "#dc2626",
-                                                    }}
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            </div>
-                                        )}
-
-                                        <textarea
-                                            key={`${itemId}-${item.assignedTo || ""}`}
-                                            aria-label={`${item.name} कोणाकडे आहे`}
-                                            title="हा प्रॉप कोणाकडे आहे?"
-                                            rows={1}
-                                            defaultValue={item.assignedTo || ""}
-                                            placeholder="कोणाकडे आहे?"
-                                            readOnly={
-                                                !isAdmin &&
-                                                !!item.checked &&
-                                                !allowUsersEditAssignedNames
-                                            }
-                                            onBlur={(e) => {
-                                                if (
-                                                    !isAdmin &&
-                                                    item.checked &&
-                                                    !allowUsersEditAssignedNames
-                                                )
-                                                    return;
-                                                updateAssignedTo(
-                                                    currentSection.id,
-                                                    itemId,
-                                                    e.target.value.trim(),
-                                                );
-                                            }}
-                                            style={{
-                                                width: "min(220px, 32%)",
-                                                background:
-                                                    !isAdmin &&
-                                                    item.checked &&
-                                                    !allowUsersEditAssignedNames
-                                                        ? "#f1f5f9"
-                                                        : "#fff",
-                                                cursor:
-                                                    !isAdmin &&
-                                                    item.checked &&
-                                                    !allowUsersEditAssignedNames
-                                                        ? "not-allowed"
-                                                        : "text",
-
-                                                minWidth: "120px",
-
-                                                minHeight: "38px",
-
-                                                marginLeft: "auto",
-
-                                                padding: "8px 10px",
-
-                                                border: "1px solid #d7deea",
-
-                                                borderRadius: "9px",
-
-                                                background: "#fff",
-
-                                                color: "#243047",
-
-                                                font: "inherit",
-
-                                                fontSize: "14px",
-
-                                                resize: "vertical",
-
-                                                boxSizing: "border-box",
-                                            }}
-                                        />
-                                    </div>
-                                ))
-                            )}
-                        </div>
-
-                        {isAdmin && (
-                            <AddPropForm
-                                key={currentSection.id}
-                                onAdd={(name) =>
-                                    addProp(currentSection.id, name)
-                                }
-                            />
+            <div className="items-list">
+              {!filteredItems.length ? (
+                <div className="empty-state">
+                  {search
+                    ? "या शोधासाठी प्रॉप सापडला नाही."
+                    : "या प्रवेशासाठी अजून प्रॉप्स नाहीत."}
+                </div>
+              ) : (
+                filteredItems.map(([itemId, item], index) => (
+                  <div
+                    className={`prop-row ${item.checked ? "is-checked" : ""}`}
+                    key={itemId}
+                  >
+                    <span
+                      className="checkbox-tooltip-wrap"
+                      title={
+                        isPropLockedForUser(currentSection.id, itemId)
+                          ? "आधी कोणाकडे आहे त्याचे नाव लिहा मग box चेक करा."
+                          : ""
+                      }
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        position: "relative",
+                      }}
+                    >
+                      {isPropLockedForUser(currentSection.id, itemId) && (
+                        <button
+                          type="button"
+                          aria-label="व्यक्तीचे नाव आधी लिहा"
+                          title="व्यक्तीचे नाव आधी लिहा"
+                          onClick={() =>
+                            window.alert(
+                              item.checked
+                                ? "हा प्रॉप आधीच checked आहे. बदलण्यासाठी Admin शी संपर्क करा."
+                                : "आधी कोणाकडे आहे त्याचे नाव लिहा मग box चेक करा",
+                            )
+                          }
+                          style={{
+                            position: "absolute",
+                            inset: 0,
+                            zIndex: 1,
+                            width: "100%",
+                            height: "100%",
+                            padding: 0,
+                            border: 0,
+                            background: "transparent",
+                            cursor: "not-allowed",
+                          }}
+                        />
+                      )}
+                      <input
+                        type="checkbox"
+                        checked={!!item.checked}
+                        disabled={isPropLockedForUser(
+                          currentSection.id,
+                          itemId,
                         )}
-                    </section>
-                ) : null}
+                        onChange={(e) => {
+                          if (
+                            e.target.checked &&
+                            isPropLockedForUser(currentSection.id, itemId)
+                          ) {
+                            setToast(
+                              "आधी कोणाकडे आहे त्याचे नाव लिहा मग box चेक करा.",
+                            );
+                            return;
+                          }
 
-                <footer>
-                    फायनल चा फेरा · २०२६ <span>Props management workspace</span>
-                </footer>
-            </div>
+                          toggleChecked(
+                            currentSection.id,
+                            itemId,
+                            e.target.checked,
+                          );
+                        }}
+                        aria-label={item.name}
+                      />
+                    </span>
 
-            <button
-                className="trash-fab"
-                style={{
-                    position: "fixed",
-                    right: "max(16px, env(safe-area-inset-right))",
-                    bottom: "max(16px, env(safe-area-inset-bottom))",
-                    zIndex: 9999,
-                }}
-                title="Deleted Props / Trash"
-                onClick={() => setTrashOpen(true)}
-            >
-                <Trash2 size={19} />
+                    <span className="item-number">{index + 1}</span>
 
-                <span>{trash.length}</span>
-            </button>
+                    {isAdmin && editingPropId === itemId ? (
+                      <input
+                        aria-label="प्रॉपचे नाव बदला"
+                        value={editingPropName}
+                        onChange={(e) => setEditingPropName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
 
-            <button
-                className="scroll-top"
-                style={{
-                    position: "fixed",
-                    right: "max(16px, env(safe-area-inset-right))",
-                    bottom: "max(104px, calc(env(safe-area-inset-bottom) + 88px))",
-                    zIndex: 9999,
-                }}
-                title="वर जा"
-                aria-label="वर जा"
-                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            >
-                <ArrowUp size={20} />
-            </button>
+                            updatePropName(
+                              currentSection.id,
+                              itemId,
+                              editingPropName,
+                            );
+                          }
 
-            {loginOpen &&
-                createPortal(
-                    <div
-                        className="admin-login-overlay"
-                        onMouseDown={(e) => {
-                            if (e.target === e.currentTarget)
-                                setLoginOpen(false);
+                          if (e.key === "Escape") setEditingPropId("");
                         }}
                         style={{
-                            position: "fixed",
+                          flex: "1 1 auto",
 
-                            top: 0,
+                          minWidth: 0,
 
-                            left: 0,
+                          width: "100px",
 
-                            right: 0,
+                          padding: "7px 8px",
 
-                            bottom: 0,
+                          border: "1px solid #9bb5f7",
 
-                            zIndex: 100000,
+                          borderRadius: "8px",
 
-                            width: "100vw",
-
-                            height: "100dvh",
-
-                            maxWidth: "100vw",
-
-                            display: "flex",
-
-                            alignItems: "center",
-
-                            justifyContent: "center",
-
-                            padding: "16px",
-
-                            paddingTop: "max(16px, env(safe-area-inset-top))",
-
-                            paddingBottom:
-                                "max(16px, env(safe-area-inset-bottom))",
-
-                            boxSizing: "border-box",
-
-                            overflowX: "hidden",
-
-                            overflowY: "auto",
-
-                            background: "rgba(20, 29, 48, 0.58)",
-
-                            backdropFilter: "blur(5px)",
-
-                            WebkitBackdropFilter: "blur(5px)",
+                          font: "inherit",
                         }}
-                    >
-                        <section
-                            role="dialog"
-                            aria-modal="true"
-                            aria-labelledby="admin-login-title"
-                            style={{
-                                width: "min(360px, calc(100vw - 32px))",
+                      />
+                    ) : (
+                      <span className="item-name">{item.name}</span>
+                    )}
 
-                                maxWidth: "100%",
+                    {isAdmin && (
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          gap: "4px",
+                          flex: "0 0 auto",
+                        }}
+                      >
+                        {editingPropId === itemId ? (
+                          <>
+                            <button
+                              type="button"
+                              title="नाव save करा"
+                              aria-label="नाव save करा"
+                              onClick={() =>
+                                updatePropName(
+                                  currentSection.id,
+                                  itemId,
+                                  editingPropName,
+                                )
+                              }
+                              style={adminIconStyle}
+                            >
+                              <Save size={16} />
+                            </button>
 
-                                minWidth: 0,
+                            <button
+                              type="button"
+                              title="रद्द करा"
+                              aria-label="रद्द करा"
+                              onClick={() => setEditingPropId("")}
+                              style={adminIconStyle}
+                            >
+                              <X size={16} />
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            title="प्रॉप edit करा"
+                            aria-label="प्रॉप edit करा"
+                            onClick={() => {
+                              setEditingPropId(itemId);
 
-                                flex: "0 1 auto",
-
-                                margin: "auto",
-
-                                padding: "20px 16px",
-
-                                borderRadius: "16px",
-
-                                background: "#fff",
-
-                                boxShadow: "0 20px 60px rgba(0,0,0,.2)",
-
-                                boxSizing: "border-box",
-
-                                overflowX: "hidden",
-
-                                overflowY: "auto",
+                              setEditingPropName(item.name || "");
                             }}
+                            style={adminIconStyle}
+                          >
+                            <Pencil size={16} />
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          title="प्रॉप delete करा"
+                          aria-label="प्रॉप delete करा"
+                          onClick={() =>
+                            deleteProp(currentSection, itemId, item)
+                          }
+                          style={{
+                            ...adminIconStyle,
+                            color: "#dc2626",
+                          }}
                         >
-                            <div
-                                style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    alignItems: "center",
-                                    gap: "12px",
-                                }}
-                            >
-                                <h2
-                                    id="admin-login-title"
-                                    style={{ margin: 0, fontSize: "19px" }}
-                                >
-                                    Admin Login
-                                </h2>
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    )}
 
-                                <button
-                                    type="button"
-                                    aria-label="Close login"
-                                    onClick={() => setLoginOpen(false)}
-                                    style={adminIconStyle}
-                                >
-                                    <X size={18} />
-                                </button>
-                            </div>
+                    <textarea
+                      key={`${itemId}-${item.assignedTo || ""}`}
+                      aria-label={`${item.name} कोणाकडे आहे`}
+                      title="हा प्रॉप कोणाकडे आहे?"
+                      rows={1}
+                      defaultValue={item.assignedTo || ""}
+                      placeholder="कोणाकडे आहे?"
+                      readOnly={
+                        !isAdmin &&
+                        !!item.checked &&
+                        !allowUsersEditAssignedNames
+                      }
+                      onBlur={(e) => {
+                        if (
+                          !isAdmin &&
+                          item.checked &&
+                          !allowUsersEditAssignedNames
+                        )
+                          return;
+                        updateAssignedTo(
+                          currentSection.id,
+                          itemId,
+                          e.target.value.trim(),
+                          e.target,
+                        );
+                      }}
+                      style={{
+                        width: "min(220px, 32%)",
+                        background:
+                          !isAdmin &&
+                          item.checked &&
+                          !allowUsersEditAssignedNames
+                            ? "#f1f5f9"
+                            : "#fff",
+                        cursor:
+                          !isAdmin &&
+                          item.checked &&
+                          !allowUsersEditAssignedNames
+                            ? "not-allowed"
+                            : "text",
 
-                            <form
-                                onSubmit={submitAdminLogin}
-                                style={{ marginTop: "18px" }}
-                            >
-                                <label
-                                    htmlFor="admin-pin"
-                                    style={{
-                                        display: "block",
-                                        marginBottom: "8px",
-                                        color: "#52627a",
-                                        fontSize: "13px",
-                                    }}
-                                >
-                                    4 digit admin code
-                                </label>
+                        minWidth: "120px",
 
-                                <input
-                                    id="admin-pin"
-                                    type="password"
-                                    inputMode="numeric"
-                                    pattern="[0-9]{4}"
-                                    maxLength={4}
-                                    autoComplete="off"
-                                    value={adminPin}
-                                    onChange={(e) => {
-                                        setAdminPin(
-                                            e.target.value
-                                                .replace(/\D/g, "")
-                                                .slice(0, 4),
-                                        );
+                        minHeight: "38px",
 
-                                        setLoginError("");
-                                    }}
-                                    placeholder="••••"
-                                    autoFocus
-                                    style={{
-                                        display: "block",
+                        marginLeft: "auto",
 
-                                        width: "100%",
+                        padding: "8px 10px",
 
-                                        maxWidth: "100%",
+                        border: "1px solid #d7deea",
 
-                                        minWidth: 0,
+                        borderRadius: "9px",
 
-                                        boxSizing: "border-box",
+                        background: "#fff",
 
-                                        padding: "12px",
+                        color: "#243047",
 
-                                        border: "1px solid #d7deea",
+                        font: "inherit",
 
-                                        borderRadius: "10px",
+                        fontSize: "14px",
 
-                                        fontSize: "20px",
+                        resize: "vertical",
 
-                                        letterSpacing: "8px",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+                ))
+              )}
+            </div>
 
-                                        textAlign: "center",
-                                    }}
-                                />
+            {isAdmin && (
+              <AddPropForm
+                key={currentSection.id}
+                onAdd={(name) => addProp(currentSection.id, name)}
+              />
+            )}
+          </section>
+        ) : null}
 
-                                {loginError && (
-                                    <p
-                                        style={{
-                                            color: "#dc2626",
-                                            fontSize: "12px",
-                                            margin: "8px 0 0",
-                                        }}
-                                    >
-                                        {loginError}
-                                    </p>
-                                )}
+        <footer>
+          फायनल चा फेरा · २०२६ <span>Props management workspace</span>
+        </footer>
+      </div>
 
-                                <button
-                                    type="submit"
-                                    disabled={adminPin.length !== 4}
-                                    style={{
-                                        display: "block",
+      <button
+        className="trash-fab"
+        style={{
+          position: "fixed",
+          right: "max(16px, env(safe-area-inset-right))",
+          bottom: "max(16px, env(safe-area-inset-bottom))",
+          zIndex: 9999,
+        }}
+        title="Deleted Props / Trash"
+        onClick={() => setTrashOpen(true)}
+      >
+        <Trash2 size={19} />
 
-                                        width: "100%",
+        <span>{trash.length}</span>
+      </button>
 
-                                        maxWidth: "100%",
+      <button
+        className="scroll-top"
+        style={{
+          position: "fixed",
+          right: "max(16px, env(safe-area-inset-right))",
+          bottom: "max(104px, calc(env(safe-area-inset-bottom) + 88px))",
+          zIndex: 9999,
+        }}
+        title="वर जा"
+        aria-label="वर जा"
+        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+      >
+        <ArrowUp size={20} />
+      </button>
 
-                                        minWidth: 0,
+      {loginOpen &&
+        createPortal(
+          <div
+            className="admin-login-overlay"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setLoginOpen(false);
+            }}
+            style={{
+              position: "fixed",
 
-                                        boxSizing: "border-box",
+              top: 0,
 
-                                        marginTop: "14px",
+              left: 0,
 
-                                        padding: "11px",
+              right: 0,
 
-                                        border: 0,
+              bottom: 0,
 
-                                        borderRadius: "10px",
+              zIndex: 100000,
 
-                                        background: "#245be8",
+              width: "100vw",
 
-                                        color: "#fff",
+              height: "100dvh",
 
-                                        fontWeight: 700,
+              maxWidth: "100vw",
 
-                                        cursor:
-                                            adminPin.length === 4
-                                                ? "pointer"
-                                                : "not-allowed",
+              display: "flex",
 
-                                        opacity:
-                                            adminPin.length === 4 ? 1 : 0.55,
-                                    }}
-                                >
-                                    Login
-                                </button>
-                            </form>
-                        </section>
-                    </div>,
+              alignItems: "center",
 
-                    document.body,
+              justifyContent: "center",
+
+              padding: "16px",
+
+              paddingTop: "max(16px, env(safe-area-inset-top))",
+
+              paddingBottom: "max(16px, env(safe-area-inset-bottom))",
+
+              boxSizing: "border-box",
+
+              overflowX: "hidden",
+
+              overflowY: "auto",
+
+              background: "rgba(20, 29, 48, 0.58)",
+
+              backdropFilter: "blur(5px)",
+
+              WebkitBackdropFilter: "blur(5px)",
+            }}
+          >
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="admin-login-title"
+              style={{
+                width: "min(360px, calc(100vw - 32px))",
+
+                maxWidth: "100%",
+
+                minWidth: 0,
+
+                flex: "0 1 auto",
+
+                margin: "auto",
+
+                padding: "20px 16px",
+
+                borderRadius: "16px",
+
+                background: "#fff",
+
+                boxShadow: "0 20px 60px rgba(0,0,0,.2)",
+
+                boxSizing: "border-box",
+
+                overflowX: "hidden",
+
+                overflowY: "auto",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: "12px",
+                }}
+              >
+                <h2
+                  id="admin-login-title"
+                  style={{ margin: 0, fontSize: "19px" }}
+                >
+                  Admin Login
+                </h2>
+
+                <button
+                  type="button"
+                  aria-label="Close login"
+                  onClick={() => setLoginOpen(false)}
+                  style={adminIconStyle}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={submitAdminLogin} style={{ marginTop: "18px" }}>
+                <label
+                  htmlFor="admin-pin"
+                  style={{
+                    display: "block",
+                    marginBottom: "8px",
+                    color: "#52627a",
+                    fontSize: "13px",
+                  }}
+                >
+                  4 digit admin code
+                </label>
+
+                <input
+                  id="admin-pin"
+                  type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]{4}"
+                  maxLength={4}
+                  autoComplete="off"
+                  value={adminPin}
+                  onChange={(e) => {
+                    setAdminPin(e.target.value.replace(/\D/g, "").slice(0, 4));
+
+                    setLoginError("");
+                  }}
+                  placeholder="••••"
+                  autoFocus
+                  style={{
+                    display: "block",
+
+                    width: "100%",
+
+                    maxWidth: "100%",
+
+                    minWidth: 0,
+
+                    boxSizing: "border-box",
+
+                    padding: "12px",
+
+                    border: "1px solid #d7deea",
+
+                    borderRadius: "10px",
+
+                    fontSize: "20px",
+
+                    letterSpacing: "8px",
+
+                    textAlign: "center",
+                  }}
+                />
+
+                {loginError && (
+                  <p
+                    style={{
+                      color: "#dc2626",
+                      fontSize: "12px",
+                      margin: "8px 0 0",
+                    }}
+                  >
+                    {loginError}
+                  </p>
                 )}
 
-            {trashOpen && (
-                <div
-                    className="modal-backdrop"
-                    onMouseDown={(e) => {
-                        if (e.target === e.currentTarget) setTrashOpen(false);
-                    }}
+                <button
+                  type="submit"
+                  disabled={adminPin.length !== 4}
+                  style={{
+                    display: "block",
+
+                    width: "100%",
+
+                    maxWidth: "100%",
+
+                    minWidth: 0,
+
+                    boxSizing: "border-box",
+
+                    marginTop: "14px",
+
+                    padding: "11px",
+
+                    border: 0,
+
+                    borderRadius: "10px",
+
+                    background: "#245be8",
+
+                    color: "#fff",
+
+                    fontWeight: 700,
+
+                    cursor: adminPin.length === 4 ? "pointer" : "not-allowed",
+
+                    opacity: adminPin.length === 4 ? 1 : 0.55,
+                  }}
                 >
-                    <section className="trash-modal">
-                        <div className="modal-header">
-                            <div>
-                                <span className="section-kicker">
-                                    RECOVERY CENTER
-                                </span>
+                  Login
+                </button>
+              </form>
+            </section>
+          </div>,
 
-                                <h2>
-                                    <Trash2 size={20} /> Deleted Props
-                                </h2>
-                            </div>
+          document.body,
+        )}
 
-                            <div className="modal-actions">
-                                <button
-                                    className="backup-button"
-                                    onClick={exportTrashBackup}
-                                >
-                                    <Download size={15} /> Trash Backup
-                                </button>
+      {trashOpen && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setTrashOpen(false);
+          }}
+        >
+          <section className="trash-modal">
+            <div className="modal-header">
+              <div>
+                <span className="section-kicker">RECOVERY CENTER</span>
 
-                                <button
-                                    className="icon-button"
-                                    aria-label="Close"
-                                    onClick={() => setTrashOpen(false)}
-                                >
-                                    <X size={19} />
-                                </button>
-                            </div>
-                        </div>
+                <h2>
+                  <Trash2 size={20} /> Deleted Props
+                </h2>
+              </div>
 
-                        <div className="trash-content">
-                            {!trash.length ? (
-                                <div className="empty-state">
-                                    Trash रिकामा आहे.
-                                </div>
-                            ) : (
-                                trash.map((item) => (
-                                    <div className="trash-row" key={item.id}>
-                                        <div className="trash-info">
-                                            <strong>{item.name}</strong>
+              <div className="modal-actions">
+                <button className="backup-button" onClick={exportTrashBackup}>
+                  <Download size={15} /> Trash Backup
+                </button>
 
-                                            <span>
-                                                {item.originalSectionTitle ||
-                                                    item.originalSectionId}
-                                            </span>
+                <button
+                  className="icon-button"
+                  aria-label="Close"
+                  onClick={() => setTrashOpen(false)}
+                >
+                  <X size={19} />
+                </button>
+              </div>
+            </div>
 
-                                            <small>
-                                                {formatDate(item.deletedAt)}
-                                            </small>
-                                        </div>
+            <div className="trash-content">
+              {!trash.length ? (
+                <div className="empty-state">Trash रिकामा आहे.</div>
+              ) : (
+                trash.map((item) => (
+                  <div className="trash-row" key={item.id}>
+                    <div className="trash-info">
+                      <strong>{item.name}</strong>
 
-                                        <div className="trash-row-actions">
-                                            <button
-                                                className="restore-button"
-                                                onClick={() =>
-                                                    restoreProp(item)
-                                                }
-                                            >
-                                                <RotateCcw size={15} /> Restore
-                                            </button>
+                      <span>
+                        {item.originalSectionTitle || item.originalSectionId}
+                      </span>
 
-                                            <button
-                                                className="permanent-delete-button"
-                                                onClick={() =>
-                                                    deletePermanently(item)
-                                                }
-                                                title="Delete permanently"
-                                            >
-                                                <Trash2 size={15} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </section>
-                </div>
-            )}
+                      <small>{formatDate(item.deletedAt)}</small>
+                    </div>
+
+                    <div className="trash-row-actions">
+                      <button
+                        className="restore-button"
+                        onClick={() => restoreProp(item)}
+                      >
+                        <RotateCcw size={15} /> Restore
+                      </button>
+
+                      <button
+                        className="permanent-delete-button"
+                        onClick={() => deletePermanently(item)}
+                        title="Delete permanently"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
         </div>
-    );
+      )}
+    </div>
+  );
 }
 
 function StructureManager({
-    hasActs,
+  hasActs,
 
-    disabled,
+  disabled,
 
-    selectedAct,
+  selectedAct,
 
-    onCreateAct,
+  onCreateAct,
 
-    onCreateEntry,
+  onCreateEntry,
 }) {
-    const [busy, setBusy] = useState("");
+  const [busy, setBusy] = useState("");
 
-    async function run(action, callback) {
-        if (busy) return;
+  async function run(action, callback) {
+    if (busy) return;
 
-        setBusy(action);
+    setBusy(action);
 
-        try {
-            await callback();
-        } finally {
-            setBusy("");
-        }
+    try {
+      await callback();
+    } finally {
+      setBusy("");
     }
+  }
 }
 
 function AddPropForm({ onAdd }) {
-    const [name, setName] = useState("");
+  const [name, setName] = useState("");
 
-    const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-    const [localError, setLocalError] = useState("");
+  const [localError, setLocalError] = useState("");
 
-    async function submit(e) {
-        e.preventDefault();
+  async function submit(e) {
+    e.preventDefault();
 
-        const clean = name.trim();
+    const clean = name.trim();
 
-        if (!clean || busy) return;
+    if (!clean || busy) return;
 
-        setBusy(true);
+    setBusy(true);
 
-        setLocalError("");
+    setLocalError("");
 
-        try {
-            await onAdd(clean);
+    try {
+      await onAdd(clean);
 
-            setName("");
-        } catch (error) {
-            setLocalError(error.message || "प्रॉप save झाला नाही.");
-        } finally {
-            setBusy(false);
-        }
+      setName("");
+    } catch (error) {
+      setLocalError(error.message || "प्रॉप save झाला नाही.");
+    } finally {
+      setBusy(false);
     }
+  }
 
-    return (
-        <form className="add-area" onSubmit={submit}>
-            <div className="add-input-wrap">
-                <Plus size={18} />
+  return (
+    <form className="add-area" onSubmit={submit}>
+      <div className="add-input-wrap">
+        <Plus size={18} />
 
-                <input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="या प्रवेशासाठी नवीन प्रॉप लिहा..."
-                    autoComplete="off"
-                />
-            </div>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="या प्रवेशासाठी नवीन प्रॉप लिहा..."
+          autoComplete="off"
+        />
+      </div>
 
-            <button
-                className="add-button"
-                type="submit"
-                disabled={busy || !name.trim()}
-            >
-                {busy ? (
-                    <LoaderCircle className="spin" size={17} />
-                ) : (
-                    <Plus size={17} />
-                )}{" "}
-                Add
-            </button>
+      <button
+        className="add-button"
+        type="submit"
+        disabled={busy || !name.trim()}
+      >
+        {busy ? (
+          <LoaderCircle className="spin" size={17} />
+        ) : (
+          <Plus size={17} />
+        )}{" "}
+        Add
+      </button>
 
-            {localError && <p className="inline-error">{localError}</p>}
-        </form>
-    );
+      {localError && <p className="inline-error">{localError}</p>}
+    </form>
+  );
 }
