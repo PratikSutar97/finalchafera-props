@@ -37,6 +37,7 @@ import {
   LogOut,
   Save,
   Users,
+  Info,
 } from "lucide-react";
 
 const META_REF = () => doc(db, "dramaPropsMeta", "main");
@@ -70,6 +71,89 @@ const adminIconStyle = {
 
   flex: "0 0 auto",
 };
+
+const ABUSIVE_WORDS = [
+  // English
+  "fuck",
+  "shit",
+  "bitch",
+  "asshole",
+  "bastard",
+  "dick",
+  "pussy",
+  "slut",
+  "whore",
+  "idiot",
+  "moron",
+  // Hindi (Devanagari & Hinglish)
+  "चूतिया",
+  "चुत्या",
+  "चुतिया",
+  "लवड्या",
+  "भोसडी",
+  "भोसड़ी",
+  "मादरचोद",
+  "बहनचोद",
+  "बहनchod",
+  "हरामी",
+  "कमीना",
+  "गांडू",
+  "रंडी",
+  "chutiya",
+  "chutya",
+  "bhosdike",
+  "lavdya",
+  "bhosdi",
+  "madarchod",
+  "behenchod",
+  "bhenchod",
+  "harami",
+  "kamina",
+  "gandu",
+  "randi",
+  // Marathi (Devanagari & Romanized)
+  "येडा",
+  "येड्या",
+  "गाढव",
+  "लांड्या",
+  "भिकारी",
+  "फालतू",
+  "बदमाश",
+  "लाचार",
+  "yeda",
+  "yedya",
+  "gadhav",
+  "yedjhavya",
+  "faltu",
+  "bhikari",
+];
+
+function containsAbusiveWord(value) {
+  const text = String(value ?? "").toLocaleLowerCase();
+  if (!text.trim()) return false;
+
+  const tokens = text
+    .split(/[^\p{L}\p{N}_]+/u)
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+  return ABUSIVE_WORDS.some((word) => {
+    const cleanWord = word.toLocaleLowerCase();
+    return (
+      tokens.includes(cleanWord) ||
+      (cleanWord.length >= 4 && text.includes(cleanWord))
+    );
+  });
+}
+
+function extractCleanPersonName(rawEntry) {
+  return String(rawEntry ?? "")
+    .replace(/\s*[\(\[\{]\s*\d+\s*[\)\]\}]\s*$/g, "") // strips trailing (1), [1], {1}
+    .replace(/\s*[-–—]\s*\d+\s*$/g, "") // strips trailing - 1, -1, – 1, — 1
+    .replace(/\s+\d+\s*$/g, "") // strips trailing standalone numbers like "Pratik 1"
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 function sortSections(list) {
   return [...list].sort((a, b) => {
@@ -235,6 +319,12 @@ export default function App() {
   const [sceneEntryNameEditing, setSceneEntryNameEditing] = useState(false);
 
   const [sceneEntryNameSaving, setSceneEntryNameSaving] = useState(false);
+
+  const [infoDialog, setInfoDialog] = useState(null);
+
+  const [infoDraft, setInfoDraft] = useState("");
+
+  const [infoSaving, setInfoSaving] = useState(false);
 
   // Keep Admin Mode active across page refreshes in this browser.
   const [isAdmin, setIsAdmin] = useState(() => {
@@ -464,8 +554,8 @@ export default function App() {
     [sections, selectedAct],
   );
 
-const currentSection =
-  sections.find((s) => s.id === selectedSection) || actSections[0];
+  const currentSection =
+    sections.find((s) => s.id === selectedSection) || actSections[0];
 
   const currentItems = useMemo(
     () =>
@@ -476,16 +566,6 @@ const currentSection =
     [sectionData, currentSection],
   );
 
-  function extractCleanPersonName(rawEntry) {
-    return String(rawEntry ?? "")
-      .replace(/\s*[\(\[\{]\s*\d+\s*[\)\]\}]\s*$/g, "") // strips trailing (1), [1], {1}
-      .replace(/\s*[-–—]\s*\d+\s*$/g, "") // strips trailing - 1, -1, – 1, — 1
-      .replace(/\s+\d+\s*$/g, "") // strips trailing standalone numbers like "Pratik 1"
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-  // Build a unique list of assigned people for the person dropdown.
-  // Build a unique list of assigned people for the person dropdown.
   // Build a unique list of clean assigned people names for the person dropdown.
   const assignedPeople = useMemo(() => {
     const peopleByKey = new Map();
@@ -512,40 +592,36 @@ const currentSection =
 
   // The text box searches prop names only. The dropdown filters by assigned person.
   // When both are selected, both filters apply to the results.
-  // The text box searches prop names only. The dropdown filters by assigned person.
-  // When both are selected, both filters apply to the results.
-  // The text box searches prop names only. The dropdown filters by assigned person.
-  // When both are selected, both filters apply to the results.
-const globalSearchResults = useMemo(() => {
-  const needle = search.trim().replace(/\s+/g, " ").toLocaleLowerCase();
-  const personNeedle = selectedPerson.trim().toLocaleLowerCase();
-  if (!needle && !personNeedle) return [];
+  const globalSearchResults = useMemo(() => {
+    const needle = search.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+    const personNeedle = selectedPerson.trim().toLocaleLowerCase();
+    if (!needle && !personNeedle) return [];
 
-  return sections.flatMap((section) => {
-    const items = sortItems(
-      sectionData[section.id]?.items || section.items || {},
-    );
+    return sections.flatMap((section) => {
+      const items = sortItems(
+        sectionData[section.id]?.items || section.items || {},
+      );
 
-    return items
-      .filter(([, item]) => {
-        const propName = String(item?.name || "")
-          .replace(/\s+/g, " ")
-          .trim()
-          .toLocaleLowerCase();
+      return items
+        .filter(([, item]) => {
+          const propName = String(item?.name || "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .toLocaleLowerCase();
 
-        const assignedPeopleList = String(item?.assignedTo || "")
-          .split(",")
-          .map((name) => extractCleanPersonName(name).toLocaleLowerCase())
-          .filter(Boolean);
+          const assignedPeopleList = String(item?.assignedTo || "")
+            .split(",")
+            .map((name) => extractCleanPersonName(name).toLocaleLowerCase())
+            .filter(Boolean);
 
-        return (
-          (!needle || propName.includes(needle)) &&
-          (!personNeedle || assignedPeopleList.includes(personNeedle))
-        );
-      })
-      .map(([itemId, item]) => ({ section, itemId, item }));
-  });
-}, [search, selectedPerson, sections, sectionData]);
+          return (
+            (!needle || propName.includes(needle)) &&
+            (!personNeedle || assignedPeopleList.includes(personNeedle))
+          );
+        })
+        .map(([itemId, item]) => ({ section, itemId, item }));
+    });
+  }, [search, selectedPerson, sections, sectionData]);
 
   const filteredItems = currentItems;
 
@@ -568,95 +644,108 @@ const globalSearchResults = useMemo(() => {
   function getRegisteredDeviceName() {
     return getDeviceName();
   }
-const ABUSIVE_WORDS = [
-  // English
-  "fuck",
-  "shit",
-  "bitch",
-  "asshole",
-  "bastard",
-  "dick",
-  "pussy",
-  "slut",
-  "whore",
-  "idiot",
-  "moron",
-  // Hindi (Devanagari & Hinglish)
-  "चूतिया",
-  "चुत्या",
-  "चुतिया",
-  "लवड्या",
-  "भोसडी",
-  "भोसड़ी",
-  "मादरचोद",
-  "बहनचोद",
-  "बहनchod",
-  "हरामी",
-  "कमीना",
-  "गांडू",
-  "रंडी",
-  "chutiya",
-  "chutya",
-  "bhosdike",
-  "lavdya",
-  "bhosdi",
-  "madarchod",
-  "behenchod",
-  "bhenchod",
-  "harami",
-  "kamina",
-  "gandu",
-  "randi",
-  // Marathi (Devanagari & Romanized)
-  "येडा",
-  "येड्या",
-  "गाढव",
-  "लांड्या",
-  "भिकारी",
-  "फालतू",
-  "बदमाश",
-  "लाचार",
-  "yeda",
-  "yedya",
-  "gadhav",
-  "yedjhavya",
-  "faltu",
-  "bhikari",
-];
 
-function containsAbusiveWord(value) {
-  const text = String(value ?? "").toLocaleLowerCase();
-  if (!text.trim()) return false;
+  async function updateMeta(transaction = null) {
+    if (isAdmin) return;
 
-  // Split by non-letter characters (supports Latin, Devanagari, etc.)
-  const tokens = text
-    .split(/[^\p{L}\p{N}_]+/u)
-    .map((t) => t.trim())
-    .filter(Boolean);
+    const metaData = {
+      lastUpdatedAt: serverTimestamp(),
+      lastUpdatedDevice: getRegisteredDeviceName(),
+    };
 
-  return ABUSIVE_WORDS.some((word) => {
-    const cleanWord = word.toLocaleLowerCase();
-    // Match exact token or substring for multi-part slang
-    return (
-      tokens.includes(cleanWord) ||
-      (cleanWord.length >= 4 && text.includes(cleanWord))
-    );
-  });
-}
-async function updateMeta(transaction = null) {
-  if (isAdmin) return;
-
-  const metaData = {
-    lastUpdatedAt: serverTimestamp(),
-    lastUpdatedDevice: getRegisteredDeviceName(),
-  };
-
-  if (transaction) {
-    transaction.set(META_REF(), metaData, { merge: true });
-  } else {
-    await setDoc(META_REF(), metaData, { merge: true });
+    if (transaction) {
+      transaction.set(META_REF(), metaData, { merge: true });
+    } else {
+      await setDoc(META_REF(), metaData, { merge: true });
+    }
   }
-}
+
+  function openPropInfoDialog(sectionId, itemId, item) {
+    const existingNote = String(
+      item?.usageNote || item?.description || "",
+    );
+    setInfoDraft(existingNote);
+    setInfoDialog({
+      sectionId,
+      itemId,
+      propName: item?.name || "",
+    });
+  }
+
+  async function savePropUsageNote(e) {
+    e?.preventDefault?.();
+    if (!infoDialog || infoSaving) return;
+
+    const { sectionId, itemId } = infoDialog;
+    const cleanNote = infoDraft.trim();
+
+    if (containsAbusiveWord(cleanNote)) {
+      setError("वर्णनात अयोग्य किंवा अपशब्द वापरता येणार नाही.");
+      return;
+    }
+
+    setError("");
+    setInfoSaving(true);
+
+    try {
+      const ref = doc(db, "dramaProps", sectionId);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists() || !snap.data().items?.[itemId]) {
+          throw new Error("प्रॉप सापडला नाही.");
+        }
+
+        tx.update(ref, {
+          [`items.${itemId}.usageNote`]: cleanNote,
+          updatedAt: serverTimestamp(),
+        });
+
+        await updateMeta(tx);
+      });
+
+      setInfoDialog(null);
+      setToast("प्रॉपची माहिती save झाली.");
+    } catch (err) {
+      console.error("Usage note save failed:", err);
+      setError(`प्रॉपची माहिती save झाली नाही: ${err.message}`);
+    } finally {
+      setInfoSaving(false);
+    }
+  }
+
+  function renderPropInfoButton(sectionId, itemId, item) {
+    const noteText = String(item?.usageNote || item?.description || "").trim();
+    const hasNote = Boolean(noteText);
+
+    return (
+      <button
+        type="button"
+        aria-label={`${item.name} — कुठे आणि कोण वापरतं?`}
+        title={
+          hasNote
+            ? `माहिती: ${noteText}`
+            : "कुठे आणि कोण वापरतं ते लिहा"
+        }
+        onClick={() => openPropInfoDialog(sectionId, itemId, item)}
+        style={{
+          width: "26px",
+          height: "26px",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flex: "0 0 auto",
+          padding: 0,
+          border: hasNote ? "1px solid #93c5fd" : "1px solid #d7deea",
+          borderRadius: "999px",
+          background: hasNote ? "#eff6ff" : "#fff",
+          color: hasNote ? "#1d4ed8" : "#64748b",
+          cursor: "pointer",
+        }}
+      >
+        <Info size={14} />
+      </button>
+    );
+  }
 
   async function setUserNameEditingPermission(enabled) {
     if (!isAdmin) return;
@@ -803,13 +892,8 @@ async function updateMeta(transaction = null) {
       });
     } catch (e) {
       console.error("Checkbox update failed:", e);
-      // setError(`Checkbox update save झाला नाही: ${e.message}`);
     }
   }
-
-  // An अंक is represented by its first प्रवेश document in the existing
-
-  // dramaProps collection. This keeps the current Firestore data model intact.
 
   async function createAct() {
     setError("");
@@ -1008,107 +1092,106 @@ async function updateMeta(transaction = null) {
     }
   }
 
-async function updateAssignedTo(sectionId, itemId, assignedTo, inputEl = null) {
-  setError("");
+  async function updateAssignedTo(sectionId, itemId, assignedTo, inputEl = null) {
+    setError("");
 
-  const sourceSection = sections.find((section) => section.id === sectionId);
-  const sourceItems =
-    sectionData[sectionId]?.items || sourceSection?.items || {};
-  const sourceItem = sourceItems[itemId];
+    const sourceSection = sections.find((section) => section.id === sectionId);
+    const sourceItems =
+      sectionData[sectionId]?.items || sourceSection?.items || {};
+    const sourceItem = sourceItems[itemId];
 
-  if (containsAbusiveWord(assignedTo)) {
-    if (inputEl) {
-      inputEl.value = sourceItem?.assignedTo || "";
+    if (containsAbusiveWord(assignedTo)) {
+      if (inputEl) {
+        inputEl.value = sourceItem?.assignedTo || "";
+      }
+      setError("व्यक्तीच्या नावात अयोग्य किंवा अपशब्द वापरता येणार नाही.");
+      return;
     }
-    setError("व्यक्तीच्या नावात अयोग्य किंवा अपशब्द वापरता येणार नाही.");
-    return;
-  }
 
-  try {
-    if (!sourceItem?.name) throw new Error("प्रॉप सापडला नाही.");
+    try {
+      if (!sourceItem?.name) throw new Error("प्रॉप सापडला नाही.");
 
-    const targetName = sourceItem.name.trim().toLocaleLowerCase();
-    const matchingOccurrences = [];
+      const targetName = sourceItem.name.trim().toLocaleLowerCase();
+      const matchingOccurrences = [];
 
-    for (const section of sections) {
-      const items = sectionData[section.id]?.items || section.items || {};
-      for (const [id, item] of Object.entries(items)) {
-        if (item?.name?.trim().toLocaleLowerCase() === targetName) {
-          matchingOccurrences.push({
-            sectionId: section.id,
-            itemId: id,
-          });
+      for (const section of sections) {
+        const items = sectionData[section.id]?.items || section.items || {};
+        for (const [id, item] of Object.entries(items)) {
+          if (item?.name?.trim().toLocaleLowerCase() === targetName) {
+            matchingOccurrences.push({
+              sectionId: section.id,
+              itemId: id,
+            });
+          }
         }
       }
-    }
 
-    const uniqueSectionIds = [
-      ...new Set(matchingOccurrences.map((item) => item.sectionId)),
-    ];
+      const uniqueSectionIds = [
+        ...new Set(matchingOccurrences.map((item) => item.sectionId)),
+      ];
 
-    if (matchingOccurrences.length > 499) {
-      throw new Error(
-        "या प्रॉपच्या खूप नोंदी आहेत. एकाच वेळी अपडेट करता येणार नाही.",
-      );
-    }
-
-    await runTransaction(db, async (tx) => {
-      const snapshots = new Map();
-
-      for (const id of uniqueSectionIds) {
-        const ref = doc(db, "dramaProps", id);
-        const snap = await tx.get(ref);
-        if (snap.exists()) snapshots.set(id, { ref, data: snap.data() });
-      }
-
-      const currentMatchingItems = matchingOccurrences
-        .map((occurrence) => {
-          const section = snapshots.get(occurrence.sectionId);
-          return section?.data.items?.[occurrence.itemId];
-        })
-        .filter(
-          (item) => item?.name?.trim().toLocaleLowerCase() === targetName,
-        );
-
-      if (
-        !isAdmin &&
-        !allowUsersEditAssignedNames &&
-        currentMatchingItems.some((item) => item?.checked === true)
-      ) {
+      if (matchingOccurrences.length > 499) {
         throw new Error(
-          "हा प्रॉप checked आहे. व्यक्तीचे नाव बदलण्याची परवानगी सध्या बंद आहे. Admin शी संपर्क करा.",
+          "या प्रॉपच्या खूप नोंदी आहेत. एकाच वेळी अपडेट करता येणार नाही.",
         );
       }
 
-      for (const occurrence of matchingOccurrences) {
-        const section = snapshots.get(occurrence.sectionId);
-        const currentItem = section?.data.items?.[occurrence.itemId];
+      await runTransaction(db, async (tx) => {
+        const snapshots = new Map();
+
+        for (const id of uniqueSectionIds) {
+          const ref = doc(db, "dramaProps", id);
+          const snap = await tx.get(ref);
+          if (snap.exists()) snapshots.set(id, { ref, data: snap.data() });
+        }
+
+        const currentMatchingItems = matchingOccurrences
+          .map((occurrence) => {
+            const section = snapshots.get(occurrence.sectionId);
+            return section?.data.items?.[occurrence.itemId];
+          })
+          .filter(
+            (item) => item?.name?.trim().toLocaleLowerCase() === targetName,
+          );
 
         if (
-          !section ||
-          currentItem?.name?.trim().toLocaleLowerCase() !== targetName
-        )
-          continue;
+          !isAdmin &&
+          !allowUsersEditAssignedNames &&
+          currentMatchingItems.some((item) => item?.checked === true)
+        ) {
+          throw new Error(
+            "हा प्रॉप checked आहे. व्यक्तीचे नाव बदलण्याची परवानगी सध्या बंद आहे. Admin शी संपर्क करा.",
+          );
+        }
 
-        tx.update(section.ref, {
-          [`items.${occurrence.itemId}.assignedTo`]: assignedTo,
-          // Clearing the assignee also clears every matching checkbox.
-          ...(assignedTo
-            ? {}
-            : {
-                [`items.${occurrence.itemId}.checked`]: false,
-              }),
-          updatedAt: serverTimestamp(),
-        });
-      }
+        for (const occurrence of matchingOccurrences) {
+          const section = snapshots.get(occurrence.sectionId);
+          const currentItem = section?.data.items?.[occurrence.itemId];
 
-      await updateMeta(tx);
-    });
-  } catch (e) {
-    console.error("Assigned person update failed:", e);
-    setError(`प्रॉप कोणाकडे आहे हे save झाले नाही: ${e.message}`);
+          if (
+            !section ||
+            currentItem?.name?.trim().toLocaleLowerCase() !== targetName
+          )
+            continue;
+
+          tx.update(section.ref, {
+            [`items.${occurrence.itemId}.assignedTo`]: assignedTo,
+            ...(assignedTo
+              ? {}
+              : {
+                  [`items.${occurrence.itemId}.checked`]: false,
+                }),
+            updatedAt: serverTimestamp(),
+          });
+        }
+
+        await updateMeta(tx);
+      });
+    } catch (e) {
+      console.error("Assigned person update failed:", e);
+      setError(`प्रॉप कोणाकडे आहे हे save झाले नाही: ${e.message}`);
+    }
   }
-}
 
   async function updatePropName(sectionId, itemId, name) {
     const cleanName = name.trim();
@@ -1333,471 +1416,466 @@ async function updateAssignedTo(sectionId, itemId, assignedTo, inputEl = null) {
     }
   }
 
-async function downloadPdf(checkedMode, uniqueMode = false, mode = null) {
-  const activeMode =
-    mode || (uniqueMode ? "unique" : "section");
+  async function downloadPdf(checkedMode, uniqueMode = false, mode = null) {
+    const activeMode = mode || (uniqueMode ? "unique" : "section");
 
-  if (!sections.length) {
-    setError(
-      "PDF तयार करण्यासाठी Firestore मधील props data load होणे आवश्यक आहे.",
-    );
-    return;
-  }
-
-  setPdfBusy(true);
-  setPdfMenu(false);
-  setError("");
-
-  let source;
-
-  try {
-    const sortedSections = sortSections(sections);
-
-    source = document.createElement("div");
-    source.id = "pdf-capture-container";
-    source.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 794px;
-      background: #ffffff;
-      color: #111827;
-      padding: 16px 20px;
-      box-sizing: border-box;
-      font-family: "Nirmala UI", "Noto Sans Devanagari", Mangal, Arial, sans-serif;
-      z-index: 999999;
-    `;
-
-    const cellStyle = `
-      width: 33.33%;
-      vertical-align: top;
-      padding: 5px 6px;
-      border-bottom: 1px solid #d1d5db;
-      font-size: 11px;
-      line-height: 1.45;
-      color: #111827;
-      word-break: break-word;
-      box-sizing: border-box;
-    `;
-
-    function renderThreeColRows(entries, renderCellContent) {
-      let rowsHtml = "";
-      for (let i = 0; i < entries.length; i += 3) {
-        rowsHtml += `<tr class="pdf-row">`;
-        for (let col = 0; col < 3; col++) {
-          const entry = entries[i + col];
-          if (!entry) {
-            rowsHtml += `<td style="${cellStyle}border-bottom:none;"></td>`;
-          } else {
-            rowsHtml += `<td style="${cellStyle}">${renderCellContent(entry, i + col)}</td>`;
-          }
-        }
-        rowsHtml += `</tr>`;
-      }
-      return `
-        <table style="width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:10px;">
-          <tbody>${rowsHtml}</tbody>
-        </table>
-      `;
+    if (!sections.length) {
+      setError(
+        "PDF तयार करण्यासाठी Firestore मधील props data load होणे आवश्यक आहे.",
+      );
+      return;
     }
 
-    const headerHtml = `
-      <div class="pdf-doc-header" style="text-align:center;margin-bottom:14px;">
-        <h1 style="font-size:20px;margin:0 0 6px;color:#111827;">
-          फायनल चा फेरा — प्रॉप्स
-        </h1>
-      </div>
-    `;
+    setPdfBusy(true);
+    setPdfMenu(false);
+    setError("");
 
-    const actBlocks = [];
+    let source;
 
-    if (activeMode === "byPerson") {
-      const personMap = new Map();
+    try {
+      const sortedSections = sortSections(sections);
 
-      for (const section of sortedSections) {
-        const actNum = getAct(section.id);
-        const praveshNum = getPravesh(section.id);
-        const placeLabel =
-          actNum && praveshNum
-            ? `अं${actNum}/प्र${praveshNum}`
-            : section.title || "";
+      source = document.createElement("div");
+      source.id = "pdf-capture-container";
+      source.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 794px;
+        background: #ffffff;
+        color: #111827;
+        padding: 16px 20px;
+        box-sizing: border-box;
+        font-family: "Nirmala UI", "Noto Sans Devanagari", Mangal, Arial, sans-serif;
+        z-index: 999999;
+      `;
 
-        const items = sortItems(
-          sectionData[section.id]?.items || section.items || {},
-        );
+      const cellStyle = `
+        width: 33.33%;
+        vertical-align: top;
+        padding: 5px 6px;
+        border-bottom: 1px solid #d1d5db;
+        font-size: 11px;
+        line-height: 1.45;
+        color: #111827;
+        word-break: break-word;
+        box-sizing: border-box;
+      `;
 
-        for (const [, item] of items) {
-          const propName = String(item?.name || "")
-            .replace(/\s+/g, " ")
-            .trim();
-          if (!propName) continue;
-
-          const rawAssigned = String(item?.assignedTo || "");
-          const entries = rawAssigned
-            .split(",")
-            .map((part) => part.replace(/\s+/g, " ").trim())
-            .filter(Boolean);
-
-          for (const rawEntry of entries) {
-            const cleanPerson = extractCleanPersonName(rawEntry);
-            if (!cleanPerson) continue;
-
-            const personKey = cleanPerson.toLocaleLowerCase();
-            if (!personMap.has(personKey)) {
-              personMap.set(personKey, {
-                person: cleanPerson,
-                props: new Map(),
-              });
-            }
-
-            const personEntry = personMap.get(personKey);
-            const propKey = propName.toLocaleLowerCase();
-
-            if (!personEntry.props.has(propKey)) {
-              personEntry.props.set(propKey, {
-                name: propName,
-                locations: new Set(),
-                rawNotes: new Set(),
-              });
-            }
-
-            const propRecord = personEntry.props.get(propKey);
-            if (placeLabel) propRecord.locations.add(placeLabel);
-            if (rawEntry && rawEntry.toLocaleLowerCase() !== personKey) {
-              propRecord.rawNotes.add(rawEntry);
+      function renderThreeColRows(entries, renderCellContent) {
+        let rowsHtml = "";
+        for (let i = 0; i < entries.length; i += 3) {
+          rowsHtml += `<tr class="pdf-row">`;
+          for (let col = 0; col < 3; col++) {
+            const entry = entries[i + col];
+            if (!entry) {
+              rowsHtml += `<td style="${cellStyle}border-bottom:none;"></td>`;
+            } else {
+              rowsHtml += `<td style="${cellStyle}">${renderCellContent(entry, i + col)}</td>`;
             }
           }
+          rowsHtml += `</tr>`;
         }
-      }
-
-      const sortedPeople = [...personMap.values()].sort((a, b) =>
-        a.person.localeCompare(b.person, undefined, { sensitivity: "base" }),
-      );
-
-      let personHtml = headerHtml;
-
-      if (!sortedPeople.length) {
-        personHtml += `
-          <p class="pdf-row" style="font-size:11px;color:#666;padding:8px 0;">
-            अजून कोणत्याही व्यक्तीला प्रॉप्स assign केलेले नाहीत.
-          </p>
+        return `
+          <table style="width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:10px;">
+            <tbody>${rowsHtml}</tbody>
+          </table>
         `;
-      } else {
-        for (const group of sortedPeople) {
-          const propsList = [...group.props.values()];
-
-          personHtml += `
-            <div class="pdf-row" style="
-              margin-top:12px;
-              margin-bottom:6px;
-              padding:6px 10px;
-              background:#e8eef7;
-              border:1px solid #cbd5e1;
-              display:flex;
-              justify-content:space-between;
-              align-items:center;
-            ">
-              <h2 style="font-size:15px;margin:0;color:#111827;">
-                ${escapeText(group.person)}
-              </h2>
-              <span style="font-size:11px;color:#475569;font-weight:600;">
-                ${propsList.length} props
-              </span>
-            </div>
-          `;
-
-          personHtml += renderThreeColRows(propsList, (propObj, idx) => {
-            const locText = [...propObj.locations].join(", ");
-            return `
-              <span style="color:#555;margin-right:4px;">${idx + 1}.</span>
-              <span>${escapeText(propObj.name)}</span>
-              ${
-                locText
-                  ? `<span style="margin-left:6px;color:#64748b;font-size:10px;">(${escapeText(locText)})</span>`
-                  : ""
-              }
-            `;
-          });
-        }
       }
 
-      actBlocks.push(`<div class="act-block">${personHtml}</div>`);
-    } else if (activeMode === "unique") {
-      const uniqueProps = new Map();
+      const headerHtml = `
+        <div class="pdf-doc-header" style="text-align:center;margin-bottom:14px;">
+          <h1 style="font-size:20px;margin:0 0 6px;color:#111827;">
+            फायनल चा फेरा — प्रॉप्स
+          </h1>
+        </div>
+      `;
 
-      for (const section of sortedSections) {
-        const items = sortItems(
-          sectionData[section.id]?.items || section.items || {},
-        );
+      const actBlocks = [];
 
-        for (const [, item] of items) {
-          const name = String(item?.name || "").replace(/\s+/g, " ").trim();
-          if (!name) continue;
+      if (activeMode === "byPerson") {
+        const personMap = new Map();
 
-          const normalizedName = name.toLocaleLowerCase();
-          if (!uniqueProps.has(normalizedName)) {
-            uniqueProps.set(normalizedName, {
-              name,
-              assignedTo: new Set(),
-            });
-          }
-
-          const rawAssigned = String(item?.assignedTo || "");
-          rawAssigned.split(",").forEach((entry) => {
-            const cleanPerson = extractCleanPersonName(entry);
-            if (cleanPerson) {
-              uniqueProps.get(normalizedName).assignedTo.add(cleanPerson);
-            }
-          });
-        }
-      }
-
-      const uniqueBody = renderThreeColRows(
-        [...uniqueProps.values()],
-        (prop, idx) => {
-          const people = [...prop.assignedTo].join(", ");
-          return `
-            <span style="color:#555;margin-right:4px;">${idx + 1}.</span>
-            <span>${escapeText(prop.name)}</span>
-            ${
-              people
-                ? `<span style="margin-left:6px;color:#555;">${escapeText(people)}</span>`
-                : ""
-            }
-          `;
-        },
-      );
-
-      actBlocks.push(`${headerHtml}${uniqueBody}`);
-    } else {
-      const groupedByAct = new Map();
-
-      for (const section of sortedSections) {
-        const act = getAct(section.id);
-        if (!groupedByAct.has(act)) {
-          groupedByAct.set(act, []);
-        }
-        groupedByAct.get(act).push(section);
-      }
-
-      let isFirstAct = true;
-      for (const [act, actSectionsList] of groupedByAct.entries()) {
-        let blockHtml = isFirstAct ? headerHtml : "";
-        isFirstAct = false;
-
-        blockHtml += `
-          <div class="pdf-row" style="
-            margin-top:4px;
-            margin-bottom:8px;
-            padding:7px 10px;
-            background:#e8eef7;
-            border:1px solid #cbd5e1;
-          ">
-            <h2 style="font-size:16px;margin:0;color:#111827;">
-              अंक ${act}
-            </h2>
-          </div>
-        `;
-
-        for (const section of actSectionsList) {
-          const sectionDisplayTitle =
-            section.title || `प्रवेश ${getPravesh(section.id)}`;
-          const sceneEntryName = String(
-            sectionData[section.id]?.sceneEntryName || "",
-          ).trim();
-
-          blockHtml += `
-            <div class="pdf-row" style="
-              font-size:13px;
-              font-weight:700;
-              margin:10px 0 6px;
-              padding-bottom:4px;
-              border-bottom:1px solid #333;
-              color:#111827;
-            ">
-              ${escapeText(sectionDisplayTitle)}
-              ${
-                sceneEntryName
-                  ? `<span style="margin-left:10px;font-size:11px;font-weight:normal;color:#555;">${escapeText(sceneEntryName)}</span>`
-                  : ""
-              }
-            </div>
-          `;
+        for (const section of sortedSections) {
+          const actNum = getAct(section.id);
+          const praveshNum = getPravesh(section.id);
+          const placeLabel =
+            actNum && praveshNum
+              ? `अं${actNum}/प्र${praveshNum}`
+              : section.title || "";
 
           const items = sortItems(
             sectionData[section.id]?.items || section.items || {},
           );
 
-          if (!items.length) {
-            blockHtml += `
-              <div class="pdf-row" style="font-size:11px;color:#666;padding:4px 0 8px;">
-                या प्रवेशासाठी अजून प्रॉप्स नाहीत.
+          for (const [, item] of items) {
+            const propName = String(item?.name || "")
+              .replace(/\s+/g, " ")
+              .trim();
+            if (!propName) continue;
+
+            const rawAssigned = String(item?.assignedTo || "");
+            const entries = rawAssigned
+              .split(",")
+              .map((part) => part.replace(/\s+/g, " ").trim())
+              .filter(Boolean);
+
+            for (const rawEntry of entries) {
+              const cleanPerson = extractCleanPersonName(rawEntry);
+              if (!cleanPerson) continue;
+
+              const personKey = cleanPerson.toLocaleLowerCase();
+              if (!personMap.has(personKey)) {
+                personMap.set(personKey, {
+                  person: cleanPerson,
+                  props: new Map(),
+                });
+              }
+
+              const personEntry = personMap.get(personKey);
+              const propKey = propName.toLocaleLowerCase();
+
+              if (!personEntry.props.has(propKey)) {
+                personEntry.props.set(propKey, {
+                  name: propName,
+                  locations: new Set(),
+                });
+              }
+
+              const propRecord = personEntry.props.get(propKey);
+              if (placeLabel) propRecord.locations.add(placeLabel);
+            }
+          }
+        }
+
+        const sortedPeople = [...personMap.values()].sort((a, b) =>
+          a.person.localeCompare(b.person, undefined, { sensitivity: "base" }),
+        );
+
+        let personHtml = headerHtml;
+
+        if (!sortedPeople.length) {
+          personHtml += `
+            <p class="pdf-row" style="font-size:11px;color:#666;padding:8px 0;">
+              अजून कोणत्याही व्यक्तीला प्रॉप्स assign केलेले नाहीत.
+            </p>
+          `;
+        } else {
+          for (const group of sortedPeople) {
+            const propsList = [...group.props.values()];
+
+            personHtml += `
+              <div class="pdf-row" style="
+                margin-top:12px;
+                margin-bottom:6px;
+                padding:6px 10px;
+                background:#e8eef7;
+                border:1px solid #cbd5e1;
+                display:flex;
+                justify-content:space-between;
+                align-items:center;
+              ">
+                <h2 style="font-size:15px;margin:0;color:#111827;">
+                  ${escapeText(group.person)}
+                </h2>
+                <span style="font-size:11px;color:#475569;font-weight:600;">
+                  ${propsList.length} props
+                </span>
               </div>
             `;
-            continue;
-          }
 
-          blockHtml += renderThreeColRows(items, ([, item], idx) => {
-            const isChecked = item?.checked === true;
+            personHtml += renderThreeColRows(propsList, (propObj, idx) => {
+              const locText = [...propObj.locations].join(", ");
+              return `
+                <span style="color:#555;margin-right:4px;">${idx + 1}.</span>
+                <span>${escapeText(propObj.name)}</span>
+                ${
+                  locText
+                    ? `<span style="margin-left:6px;color:#64748b;font-size:10px;">(${escapeText(locText)})</span>`
+                    : ""
+                }
+              `;
+            });
+          }
+        }
+
+        actBlocks.push(`<div class="act-block">${personHtml}</div>`);
+      } else if (activeMode === "unique") {
+        const uniqueProps = new Map();
+
+        for (const section of sortedSections) {
+          const items = sortItems(
+            sectionData[section.id]?.items || section.items || {},
+          );
+
+          for (const [, item] of items) {
+            const name = String(item?.name || "").replace(/\s+/g, " ").trim();
+            if (!name) continue;
+
+            const normalizedName = name.toLocaleLowerCase();
+            if (!uniqueProps.has(normalizedName)) {
+              uniqueProps.set(normalizedName, {
+                name,
+                assignedTo: new Set(),
+              });
+            }
+
+            const rawAssigned = String(item?.assignedTo || "");
+            rawAssigned.split(",").forEach((entry) => {
+              const cleanPerson = extractCleanPersonName(entry);
+              if (cleanPerson) {
+                uniqueProps.get(normalizedName).assignedTo.add(cleanPerson);
+              }
+            });
+          }
+        }
+
+        const uniqueBody = renderThreeColRows(
+          [...uniqueProps.values()],
+          (prop, idx) => {
+            const people = [...prop.assignedTo].join(", ");
             return `
               <span style="color:#555;margin-right:4px;">${idx + 1}.</span>
+              <span>${escapeText(prop.name)}</span>
               ${
-                checkedMode
-                  ? `<span style="font-size:12px;margin-right:4px;">${isChecked ? "☑" : "☐"}</span>`
-                  : ""
-              }
-              <span>${escapeText(item?.name || "")}</span>
-              ${
-                item?.assignedTo
-                  ? `<span style="margin-left:6px;color:#555;">${escapeText(item.assignedTo)}</span>`
+                people
+                  ? `<span style="margin-left:6px;color:#555;">${escapeText(people)}</span>`
                   : ""
               }
             `;
-          });
+          },
+        );
+
+        actBlocks.push(`${headerHtml}${uniqueBody}`);
+      } else {
+        const groupedByAct = new Map();
+
+        for (const section of sortedSections) {
+          const act = getAct(section.id);
+          if (!groupedByAct.has(act)) {
+            groupedByAct.set(act, []);
+          }
+          groupedByAct.get(act).push(section);
         }
 
-        actBlocks.push(`<div class="act-block">${blockHtml}</div>`);
+        let isFirstAct = true;
+        for (const [act, actSectionsList] of groupedByAct.entries()) {
+          let blockHtml = isFirstAct ? headerHtml : "";
+          isFirstAct = false;
+
+          blockHtml += `
+            <div class="pdf-row" style="
+              margin-top:4px;
+              margin-bottom:8px;
+              padding:7px 10px;
+              background:#e8eef7;
+              border:1px solid #cbd5e1;
+            ">
+              <h2 style="font-size:16px;margin:0;color:#111827;">
+                अंक ${act}
+              </h2>
+            </div>
+          `;
+
+          for (const section of actSectionsList) {
+            const sectionDisplayTitle =
+              section.title || `प्रवेश ${getPravesh(section.id)}`;
+            const sceneEntryName = String(
+              sectionData[section.id]?.sceneEntryName || "",
+            ).trim();
+
+            blockHtml += `
+              <div class="pdf-row" style="
+                font-size:13px;
+                font-weight:700;
+                margin:10px 0 6px;
+                padding-bottom:4px;
+                border-bottom:1px solid #333;
+                color:#111827;
+              ">
+                ${escapeText(sectionDisplayTitle)}
+                ${
+                  sceneEntryName
+                    ? `<span style="margin-left:10px;font-size:11px;font-weight:normal;color:#555;">${escapeText(sceneEntryName)}</span>`
+                    : ""
+                }
+              </div>
+            `;
+
+            const items = sortItems(
+              sectionData[section.id]?.items || section.items || {},
+            );
+
+            if (!items.length) {
+              blockHtml += `
+                <div class="pdf-row" style="font-size:11px;color:#666;padding:4px 0 8px;">
+                  या प्रवेशासाठी अजून प्रॉप्स नाहीत.
+                </div>
+              `;
+              continue;
+            }
+
+            blockHtml += renderThreeColRows(items, ([, item], idx) => {
+              const isChecked = item?.checked === true;
+              return `
+                <span style="color:#555;margin-right:4px;">${idx + 1}.</span>
+                ${
+                  checkedMode
+                    ? `<span style="font-size:12px;margin-right:4px;">${isChecked ? "☑" : "☐"}</span>`
+                    : ""
+                }
+                <span>${escapeText(item?.name || "")}</span>
+                ${
+                  item?.assignedTo
+                    ? `<span style="margin-left:6px;color:#555;">${escapeText(item.assignedTo)}</span>`
+                    : ""
+                }
+              `;
+            });
+          }
+
+          actBlocks.push(`<div class="act-block">${blockHtml}</div>`);
+        }
       }
-    }
 
-    source.innerHTML = actBlocks.join("");
-    document.body.appendChild(source);
+      source.innerHTML = actBlocks.join("");
+      document.body.appendChild(source);
 
-    await new Promise((resolve) =>
-      requestAnimationFrame(() => requestAnimationFrame(resolve)),
-    );
-    if (document.fonts?.ready) {
-      await document.fonts.ready;
-    }
+      await new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve)),
+      );
+      if (document.fonts?.ready) {
+        await document.fonts.ready;
+      }
 
-    const pdf = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4",
-    });
-
-    const pageWidthMm = pdf.internal.pageSize.getWidth();
-    const pageHeightMm = pdf.internal.pageSize.getHeight();
-    const marginMm = 6;
-    const printableWidthMm = pageWidthMm - marginMm * 2;
-    const printableHeightMm = pageHeightMm - marginMm * 2;
-
-    const blockEls = [...source.querySelectorAll(".act-block")];
-    const targetEls = blockEls.length ? blockEls : [source];
-
-    let hasAddedAnyPage = false;
-
-    for (const blockEl of targetEls) {
-      const canvas = await html2canvas(blockEl, {
-        scale: 2,
-        backgroundColor: "#ffffff",
-        useCORS: true,
-        logging: false,
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
       });
 
-      if (!canvas || canvas.width === 0 || canvas.height === 0) continue;
+      const pageWidthMm = pdf.internal.pageSize.getWidth();
+      const pageHeightMm = pdf.internal.pageSize.getHeight();
+      const marginMm = 6;
+      const printableWidthMm = pageWidthMm - marginMm * 2;
+      const printableHeightMm = pageHeightMm - marginMm * 2;
 
-      const blockRect = blockEl.getBoundingClientRect();
-      const scaleRatio = canvas.height / blockRect.height;
+      const blockEls = [...source.querySelectorAll(".act-block")];
+      const targetEls = blockEls.length ? blockEls : [source];
 
-      const rowBottoms = [...blockEl.querySelectorAll(".pdf-row")]
-        .map((el) =>
-          Math.round(
-            (el.getBoundingClientRect().bottom - blockRect.top) * scaleRatio,
-          ),
-        )
-        .filter((y) => y > 0 && y <= canvas.height)
-        .sort((a, b) => a - b);
+      let hasAddedAnyPage = false;
 
-      const maxSliceHeightPx = Math.floor(
-        (printableHeightMm * canvas.width) / printableWidthMm,
-      );
+      for (const blockEl of targetEls) {
+        const canvas = await html2canvas(blockEl, {
+          scale: 2,
+          backgroundColor: "#ffffff",
+          useCORS: true,
+          logging: false,
+        });
 
-      let sliceStartPx = 0;
+        if (!canvas || canvas.width === 0 || canvas.height === 0) continue;
 
-      while (sliceStartPx < canvas.height) {
-        if (hasAddedAnyPage) {
-          pdf.addPage();
-        }
-        hasAddedAnyPage = true;
+        const blockRect = blockEl.getBoundingClientRect();
+        const scaleRatio = canvas.height / blockRect.height;
 
-        const idealEndPx = Math.min(
-          sliceStartPx + maxSliceHeightPx,
-          canvas.height,
+        const rowBottoms = [...blockEl.querySelectorAll(".pdf-row")]
+          .map((el) =>
+            Math.round(
+              (el.getBoundingClientRect().bottom - blockRect.top) * scaleRatio,
+            ),
+          )
+          .filter((y) => y > 0 && y <= canvas.height)
+          .sort((a, b) => a - b);
+
+        const maxSliceHeightPx = Math.floor(
+          (printableHeightMm * canvas.width) / printableWidthMm,
         );
-        let sliceEndPx = idealEndPx;
 
-        if (idealEndPx < canvas.height) {
-          const validBottoms = rowBottoms.filter(
-            (y) => y > sliceStartPx + 20 && y <= idealEndPx,
-          );
-          if (validBottoms.length) {
-            sliceEndPx = validBottoms[validBottoms.length - 1];
+        let sliceStartPx = 0;
+
+        while (sliceStartPx < canvas.height) {
+          if (hasAddedAnyPage) {
+            pdf.addPage();
           }
+          hasAddedAnyPage = true;
+
+          const idealEndPx = Math.min(
+            sliceStartPx + maxSliceHeightPx,
+            canvas.height,
+          );
+          let sliceEndPx = idealEndPx;
+
+          if (idealEndPx < canvas.height) {
+            const validBottoms = rowBottoms.filter(
+              (y) => y > sliceStartPx + 20 && y <= idealEndPx,
+            );
+            if (validBottoms.length) {
+              sliceEndPx = validBottoms[validBottoms.length - 1];
+            }
+          }
+
+          const currentSliceHeightPx = Math.max(1, sliceEndPx - sliceStartPx);
+
+          const sliceCanvas = document.createElement("canvas");
+          sliceCanvas.width = canvas.width;
+          sliceCanvas.height = currentSliceHeightPx;
+
+          const sliceCtx = sliceCanvas.getContext("2d");
+          sliceCtx.fillStyle = "#ffffff";
+          sliceCtx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+          sliceCtx.drawImage(
+            canvas,
+            0,
+            sliceStartPx,
+            canvas.width,
+            currentSliceHeightPx,
+            0,
+            0,
+            canvas.width,
+            currentSliceHeightPx,
+          );
+
+          const sliceImgData = sliceCanvas.toDataURL("image/jpeg", 0.95);
+          const sliceHeightMm =
+            (currentSliceHeightPx * printableWidthMm) / canvas.width;
+
+          pdf.addImage(
+            sliceImgData,
+            "JPEG",
+            marginMm,
+            marginMm,
+            printableWidthMm,
+            sliceHeightMm,
+          );
+
+          sliceStartPx = sliceEndPx;
         }
-
-        const currentSliceHeightPx = Math.max(1, sliceEndPx - sliceStartPx);
-
-        const sliceCanvas = document.createElement("canvas");
-        sliceCanvas.width = canvas.width;
-        sliceCanvas.height = currentSliceHeightPx;
-
-        const sliceCtx = sliceCanvas.getContext("2d");
-        sliceCtx.fillStyle = "#ffffff";
-        sliceCtx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
-        sliceCtx.drawImage(
-          canvas,
-          0,
-          sliceStartPx,
-          canvas.width,
-          currentSliceHeightPx,
-          0,
-          0,
-          canvas.width,
-          currentSliceHeightPx,
-        );
-
-        const sliceImgData = sliceCanvas.toDataURL("image/jpeg", 0.95);
-        const sliceHeightMm =
-          (currentSliceHeightPx * printableWidthMm) / canvas.width;
-
-        pdf.addImage(
-          sliceImgData,
-          "JPEG",
-          marginMm,
-          marginMm,
-          printableWidthMm,
-          sliceHeightMm,
-        );
-
-        sliceStartPx = sliceEndPx;
       }
+
+      const filename =
+        activeMode === "byPerson"
+          ? "व्यक्तीनुसार_Props.pdf"
+          : activeMode === "unique"
+            ? "एकत्रित_Props.pdf"
+            : "प्रवेश_परमाणे_props.pdf";
+
+      pdf.save(filename);
+
+      setToast(
+        activeMode === "byPerson"
+          ? "व्यक्तीनुसार Props PDF डाउनलोड सुरू झाला."
+          : activeMode === "unique"
+            ? "एकत्रित Props PDF डाउनलोड सुरू झाला."
+            : "प्रवेश नुसार Props PDF डाउनलोड सुरू झाला.",
+      );
+    } catch (e) {
+      console.error("PDF generation failed:", e);
+      setError(`PDF तयार करताना error आला: ${e?.message || "Unknown error"}`);
+    } finally {
+      source?.remove();
+      setPdfBusy(false);
     }
-
-    const filename =
-      activeMode === "byPerson"
-        ? "व्यक्तीनुसार_Props.pdf"
-        : activeMode === "unique"
-          ? "एकत्रित_Props.pdf"
-          : "प्रवेश_परमाणे_props.pdf";
-
-    pdf.save(filename);
-
-    setToast(
-      activeMode === "byPerson"
-        ? "व्यक्तीनुसार Props PDF डाउनलोड सुरू झाला."
-        : activeMode === "unique"
-          ? "एकत्रित Props PDF डाउनलोड सुरू झाला."
-          : "प्रवेश नुसार Props PDF डाउनलोड सुरू झाला.",
-    );
-  } catch (e) {
-    console.error("PDF generation failed:", e);
-    setError(`PDF तयार करताना error आला: ${e?.message || "Unknown error"}`);
-  } finally {
-    source?.remove();
-    setPdfBusy(false);
   }
-}
 
   function exportTrashBackup() {
     const backup = trash.map(({ id, ...item }) => ({
@@ -1844,8 +1922,6 @@ async function downloadPdf(checkedMode, uniqueMode = false, mode = null) {
     >
       <div className="container">
         <header className="page-header">
-          {/* <div className="eyebrow"><span className="eyebrow-dot" /> STAGE PRODUCTION CHECKLIST</div> */}
-
           <div style={{ position: "relative", paddingRight: "44px" }}>
             <h1>
               फायनल चा फेरा <span>— प्रॉप्स</span>
@@ -1907,7 +1983,7 @@ async function downloadPdf(checkedMode, uniqueMode = false, mode = null) {
 
           <div className="updated">
             Last Updated At <span className="live-dot" />
-              
+
             {formatDate(lastUpdated)}
 
             {lastUpdatedDevice && (
@@ -2240,15 +2316,15 @@ async function downloadPdf(checkedMode, uniqueMode = false, mode = null) {
             </button>
             {pdfMenu && (
               <div className="pdf-menu">
-                <button onClick={() => downloadPdf(false)}>
+                <button onClick={() => downloadPdf(false, false, "section")}>
                   १. प्रवेश नुसारे props
                 </button>
-                <button onClick={() => downloadPdf(false, true)}>
+                <button onClick={() => downloadPdf(false, true, "unique")}>
                   २. अकत्रित Props
                 </button>
                 <button onClick={() => downloadPdf(false, false, "byPerson")}>
-      ३. व्यक्तीनुसार Props
-    </button>
+                  ३. व्यक्तीनुसार Props
+                </button>
               </div>
             )}
           </div>
@@ -2307,8 +2383,6 @@ async function downloadPdf(checkedMode, uniqueMode = false, mode = null) {
             <LoaderCircle className="spin" size={25} />
 
             <strong>Props load होत आहेत...</strong>
-
-            {/* <span>Firestore शी connection होत आहे.</span> */}
           </div>
         ) : !firebaseConfigured ? (
           <div className="state-card">
@@ -2441,9 +2515,18 @@ async function downloadPdf(checkedMode, uniqueMode = false, mode = null) {
                       />
                     </span>
 
-                    <span className="item-name" style={{ flex: "1 1 100px" }}>
-                      {item.name}
-                    </span>
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        flex: "1 1 120px",
+                        minWidth: 0,
+                      }}
+                    >
+                      {renderPropInfoButton(section.id, itemId, item)}
+                      <span className="item-name">{item.name}</span>
+                    </div>
 
                     {isAdmin && (
                       <div
@@ -2728,65 +2811,42 @@ async function downloadPdf(checkedMode, uniqueMode = false, mode = null) {
                 <span>/</span>
                 {currentItems.length} total
               </div>
-              
             </div>
 
-            {/* <div className="progress-area">
-
-              <div className="progress-label">
-
-                <span>Checklist progress</span>
-
-                <strong>{progress}%</strong>
-
-              </div>
-
-              <div className="progress-track">
-
-                <div
-
-                  className="progress-bar"
-
-                  style={{ width: `${progress}%` }}
-
-                />
-
-              </div>
-
-            </div> */}
             <div
-  className="props-list-header"
-  style={{
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: "12px",
-    padding: "10px 16px",
-    borderTop: "1px solid #020202",
-    borderBottom: "1px solid #030303",
-    background: "#f8fafc",
-    color: "#475569",
-    fontSize: "12px",
-    fontWeight: 700,
-    letterSpacing: "0.02em",
-  }}
->
-  <span style={{ flex: "1 1 auto", minWidth: 0 }}>
-    प्रॉपच नाव 
-  </span>
+              className="props-list-header"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "12px",
+                padding: "10px 16px",
+                borderTop: "1px solid #020202",
+                borderBottom: "1px solid #030303",
+                background: "#f8fafc",
+                color: "#475569",
+                fontSize: "12px",
+                fontWeight: 700,
+                letterSpacing: "0.02em",
+              }}
+            >
+              <span style={{ flex: "1 1 auto", minWidth: 0 }}>
+                प्रॉपच नाव
+              </span>
 
-  <span
-    style={{
-      width: "min(240px, 40%)",
-      minWidth: "120px",
-      marginLeft: "auto",
-      textAlign: "left",
-      boxSizing: "border-box",
-    }}
-  >
-    व्यक्तिचं नाव - प्रॉप count
-  </span>
-</div>
+              <span
+                style={{
+                  width: "min(240px, 40%)",
+                  minWidth: "120px",
+                  marginLeft: "auto",
+                  textAlign: "left",
+                  boxSizing: "border-box",
+                }}
+              >
+                व्यक्तिचं नाव - प्रॉप count
+              </span>
+            </div>
+
             <div className="items-list">
               {!filteredItems.length ? (
                 <div className="empty-state">
@@ -2868,43 +2928,55 @@ async function downloadPdf(checkedMode, uniqueMode = false, mode = null) {
 
                     <span className="item-number">{index + 1}</span>
 
-                    {isAdmin && editingPropId === itemId ? (
-                      <input
-                        aria-label="प्रॉपचे नाव बदला"
-                        value={editingPropName}
-                        onChange={(e) => setEditingPropName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        flex: "1 1 auto",
+                        minWidth: 0,
+                      }}
+                    >
+                      {renderPropInfoButton(currentSection.id, itemId, item)}
 
-                            updatePropName(
-                              currentSection.id,
-                              itemId,
-                              editingPropName,
-                            );
-                          }
+                      {isAdmin && editingPropId === itemId ? (
+                        <input
+                          aria-label="प्रॉपचे नाव बदला"
+                          value={editingPropName}
+                          onChange={(e) => setEditingPropName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
 
-                          if (e.key === "Escape") setEditingPropId("");
-                        }}
-                        style={{
-                          flex: "1 1 auto",
+                              updatePropName(
+                                currentSection.id,
+                                itemId,
+                                editingPropName,
+                              );
+                            }
 
-                          minWidth: 0,
+                            if (e.key === "Escape") setEditingPropId("");
+                          }}
+                          style={{
+                            flex: "1 1 auto",
 
-                          width: "100px",
+                            minWidth: 0,
 
-                          padding: "7px 8px",
+                            width: "100px",
 
-                          border: "1px solid #9bb5f7",
+                            padding: "7px 8px",
 
-                          borderRadius: "8px",
+                            border: "1px solid #9bb5f7",
 
-                          font: "inherit",
-                        }}
-                      />
-                    ) : (
-                      <span className="item-name">{item.name}</span>
-                    )}
+                            borderRadius: "8px",
+
+                            font: "inherit",
+                          }}
+                        />
+                      ) : (
+                        <span className="item-name">{item.name}</span>
+                      )}
+                    </div>
 
                     {isAdmin && (
                       <div
@@ -3028,8 +3100,6 @@ async function downloadPdf(checkedMode, uniqueMode = false, mode = null) {
 
                         borderRadius: "9px",
 
-                        background: "#fff",
-
                         color: "#243047",
 
                         font: "inherit",
@@ -3090,6 +3160,180 @@ async function downloadPdf(checkedMode, uniqueMode = false, mode = null) {
       >
         <ArrowUp size={20} />
       </button>
+
+      {infoDialog &&
+        createPortal(
+          <div
+            className="prop-info-overlay"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget && !infoSaving) {
+                setInfoDialog(null);
+              }
+            }}
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 100000,
+              width: "100vw",
+              height: "100dvh",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "16px",
+              boxSizing: "border-box",
+              background: "rgba(20, 29, 48, 0.58)",
+              backdropFilter: "blur(5px)",
+            }}
+          >
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="prop-info-title"
+              style={{
+                width: "min(420px, calc(100vw - 32px))",
+                maxWidth: "100%",
+                padding: "20px 18px",
+                borderRadius: "16px",
+                background: "#fff",
+                boxShadow: "0 20px 60px rgba(0,0,0,.22)",
+                boxSizing: "border-box",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: "12px",
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      color: "#245be8",
+                    }}
+                  >
+                    प्रॉप माहिती
+                  </div>
+                  <h2
+                    id="prop-info-title"
+                    style={{
+                      margin: "2px 0 0",
+                      fontSize: "18px",
+                      color: "#1e293b",
+                      overflowWrap: "anywhere",
+                    }}
+                  >
+                    {infoDialog.propName}
+                  </h2>
+                </div>
+
+                <button
+                  type="button"
+                  aria-label="बंद करा"
+                  disabled={infoSaving}
+                  onClick={() => setInfoDialog(null)}
+                  style={adminIconStyle}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={savePropUsageNote} style={{ marginTop: "14px" }}>
+                <label
+                  htmlFor="prop-usage-note"
+                  style={{
+                    display: "block",
+                    marginBottom: "8px",
+                    color: "#475569",
+                    fontSize: "13px",
+                    lineHeight: 1.45,
+                  }}
+                >
+                  हा प्रॉप कुठे आणि कोण वापरतं? (Where and who uses this prop)
+                </label>
+
+                <textarea
+                  id="prop-usage-note"
+                  rows={4}
+                  autoFocus
+                  disabled={infoSaving}
+                  value={infoDraft}
+                  onChange={(e) => setInfoDraft(e.target.value)}
+                  placeholder="उदा. स्टेजच्या उजव्या बाजूला, नंदन आणि संजय वापरतात..."
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    boxSizing: "border-box",
+                    padding: "10px 12px",
+                    border: "1px solid #d7deea",
+                    borderRadius: "10px",
+                    color: "#243047",
+                    font: "inherit",
+                    fontSize: "14px",
+                    resize: "vertical",
+                  }}
+                />
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: "8px",
+                    marginTop: "14px",
+                  }}
+                >
+                  <button
+                    type="button"
+                    disabled={infoSaving}
+                    onClick={() => setInfoDialog(null)}
+                    style={{
+                      padding: "9px 14px",
+                      border: "1px solid #d7deea",
+                      borderRadius: "9px",
+                      background: "#fff",
+                      color: "#475569",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    रद्द करा
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={infoSaving}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "9px 16px",
+                      border: 0,
+                      borderRadius: "9px",
+                      background: "#245be8",
+                      color: "#fff",
+                      fontWeight: 700,
+                      cursor: infoSaving ? "wait" : "pointer",
+                    }}
+                  >
+                    {infoSaving ? (
+                      <LoaderCircle className="spin" size={16} />
+                    ) : (
+                      <Save size={16} />
+                    )}
+                    Save
+                  </button>
+                </div>
+              </form>
+            </section>
+          </div>,
+          document.body,
+        )}
 
       {loginOpen &&
         createPortal(
