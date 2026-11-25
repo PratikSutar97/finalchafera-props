@@ -324,6 +324,8 @@ export default function App() {
 
   const [infoDraft, setInfoDraft] = useState("");
 
+  const [infoEditing, setInfoEditing] = useState(false);
+
   const [infoSaving, setInfoSaving] = useState(false);
 
   // Keep Admin Mode active across page refreshes in this browser.
@@ -665,11 +667,18 @@ export default function App() {
       item?.usageNote || item?.description || "",
     );
     setInfoDraft(existingNote);
+    setInfoEditing(false);
     setInfoDialog({
       sectionId,
       itemId,
       propName: item?.name || "",
     });
+  }
+
+  function closePropInfoDialog() {
+    if (infoSaving) return;
+    setInfoDialog(null);
+    setInfoEditing(false);
   }
 
   async function savePropUsageNote(e) {
@@ -703,7 +712,7 @@ export default function App() {
         await updateMeta(tx);
       });
 
-      setInfoDialog(null);
+      setInfoEditing(false);
       setToast("प्रॉपची माहिती save झाली.");
     } catch (err) {
       console.error("Usage note save failed:", err);
@@ -724,7 +733,7 @@ export default function App() {
         title={
           hasNote
             ? `माहिती: ${noteText}`
-            : "कुठे आणि कोण वापरतं ते लिहा"
+            : "कुठे आणि कोण वापरतं ते बघा / लिहा"
         }
         onClick={() => openPropInfoDialog(sectionId, itemId, item)}
         style={{
@@ -2926,7 +2935,7 @@ export default function App() {
                       />
                     </span>
 
-                    <span className="item-number">{index + 1}</span>
+                    {/* <span className="item-number">{index + 1}</span> */}
 
                     <div
                       style={{
@@ -3167,7 +3176,7 @@ export default function App() {
             className="prop-info-overlay"
             onMouseDown={(e) => {
               if (e.target === e.currentTarget && !infoSaving) {
-                setInfoDialog(null);
+                closePropInfoDialog();
               }
             }}
             style={{
@@ -3233,22 +3242,43 @@ export default function App() {
                   </h2>
                 </div>
 
-                <button
-                  type="button"
-                  aria-label="बंद करा"
-                  disabled={infoSaving}
-                  onClick={() => setInfoDialog(null)}
-                  style={adminIconStyle}
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    flex: "0 0 auto",
+                  }}
                 >
-                  <X size={18} />
-                </button>
+                  {!infoEditing && (
+                    <button
+                      type="button"
+                      aria-label="माहिती edit करा"
+                      title="Edit करा"
+                      disabled={infoSaving}
+                      onClick={() => setInfoEditing(true)}
+                      style={adminIconStyle}
+                    >
+                      <Pencil size={16} />
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    aria-label="बंद करा"
+                    title="बंद करा"
+                    disabled={infoSaving}
+                    onClick={closePropInfoDialog}
+                    style={adminIconStyle}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
               </div>
 
-              <form onSubmit={savePropUsageNote} style={{ marginTop: "14px" }}>
-                <label
-                  htmlFor="prop-usage-note"
+              <div style={{ marginTop: "14px" }}>
+                <div
                   style={{
-                    display: "block",
                     marginBottom: "8px",
                     color: "#475569",
                     fontSize: "13px",
@@ -3256,80 +3286,85 @@ export default function App() {
                   }}
                 >
                   हा प्रॉप कुठे आणि कोण वापरतं? (Where and who uses this prop)
-                </label>
-
-                <textarea
-                  id="prop-usage-note"
-                  rows={4}
-                  autoFocus
-                  disabled={infoSaving}
-                  value={infoDraft}
-                  onChange={(e) => setInfoDraft(e.target.value)}
-                  placeholder="उदा. स्टेजच्या उजव्या बाजूला, नंदन आणि संजय वापरतात..."
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    boxSizing: "border-box",
-                    padding: "10px 12px",
-                    border: "1px solid #d7deea",
-                    borderRadius: "10px",
-                    color: "#243047",
-                    font: "inherit",
-                    fontSize: "14px",
-                    resize: "vertical",
-                  }}
-                />
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    gap: "8px",
-                    marginTop: "14px",
-                  }}
-                >
-                  <button
-                    type="button"
-                    disabled={infoSaving}
-                    onClick={() => setInfoDialog(null)}
-                    style={{
-                      padding: "9px 14px",
-                      border: "1px solid #d7deea",
-                      borderRadius: "9px",
-                      background: "#fff",
-                      color: "#475569",
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    रद्द करा
-                  </button>
-
-                  <button
-                    type="submit"
-                    disabled={infoSaving}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      padding: "9px 16px",
-                      border: 0,
-                      borderRadius: "9px",
-                      background: "#245be8",
-                      color: "#fff",
-                      fontWeight: 700,
-                      cursor: infoSaving ? "wait" : "pointer",
-                    }}
-                  >
-                    {infoSaving ? (
-                      <LoaderCircle className="spin" size={16} />
-                    ) : (
-                      <Save size={16} />
-                    )}
-                    Save
-                  </button>
                 </div>
-              </form>
+
+                {infoEditing ? (
+                  <form onSubmit={savePropUsageNote}>
+                    <textarea
+                      id="prop-usage-note"
+                      rows={4}
+                      autoFocus
+                      disabled={infoSaving}
+                      value={infoDraft}
+                      onChange={(e) => setInfoDraft(e.target.value)}
+                      placeholder="उदा. स्टेजच्या उजव्या बाजूला, नंदन आणि संजय वापरतात..."
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        boxSizing: "border-box",
+                        padding: "10px 12px",
+                        border: "1px solid #d7deea",
+                        borderRadius: "10px",
+                        color: "#243047",
+                        font: "inherit",
+                        fontSize: "14px",
+                        resize: "vertical",
+                      }}
+                    />
+
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        gap: "8px",
+                        marginTop: "14px",
+                      }}
+                    >
+                      <button
+                        type="submit"
+                        disabled={infoSaving}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          padding: "9px 16px",
+                          border: 0,
+                          borderRadius: "9px",
+                          background: "#245be8",
+                          color: "#fff",
+                          fontWeight: 700,
+                          cursor: infoSaving ? "wait" : "pointer",
+                        }}
+                      >
+                        {infoSaving ? (
+                          <LoaderCircle className="spin" size={16} />
+                        ) : (
+                          <Save size={16} />
+                        )}
+                        Save
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div
+                    style={{
+                      minHeight: "72px",
+                      padding: "12px",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: "10px",
+                      background: "#f8fafc",
+                      color: infoDraft.trim() ? "#243047" : "#64748b",
+                      fontSize: "14px",
+                      lineHeight: 1.5,
+                      whiteSpace: "pre-wrap",
+                      overflowWrap: "anywhere",
+                    }}
+                  >
+                    {infoDraft.trim() ||
+                      "अजून माहिती लिहिलेली नाही. Edit बटणावर क्लिक करून लिहा."}
+                  </div>
+                )}
+              </div>
             </section>
           </div>,
           document.body,
